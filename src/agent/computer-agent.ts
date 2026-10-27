@@ -32,6 +32,7 @@ export class ComputerAgent {
     const history: ComputerAction[] = [];
     const actions: ActionEvidence[] = [];
     let session: BrowserSession | undefined;
+    let stage = "Browser session creation";
     let result: AgentResult = {
       status: "failed",
       message: "Step limit reached",
@@ -42,8 +43,10 @@ export class ComputerAgent {
       session = await this.browser.open({ signal });
       for (let step = 0; step < maxSteps; step++) {
         signal.throwIfAborted();
+        stage = "Screenshot capture";
         const screenshot = await session.screenshot();
         signal.throwIfAborted();
+        stage = "Model decision";
         const decision = await this.model.decide(
           { instruction, screenshot, previousActions: history },
           signal,
@@ -57,6 +60,7 @@ export class ComputerAgent {
           };
           break;
         }
+        stage = "Action validation";
         const { name, ...arguments_ } = decision.action;
         const action = parseAction(name, arguments_);
         const evidence: ActionEvidence = {
@@ -64,6 +68,7 @@ export class ComputerAgent {
           status: "failed",
         };
         actions.push(evidence);
+        stage = "Browser action";
         await executeAction(session, action);
         evidence.status = "completed";
         history.push(action);
@@ -76,7 +81,7 @@ export class ComputerAgent {
           ? { status: "failed", message: "Run timed out", actions }
           : {
               status: "failed",
-              message: "Browser or model operation failed",
+              message: `${stage} failed`,
               actions,
             };
     } finally {
