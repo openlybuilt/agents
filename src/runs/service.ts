@@ -38,7 +38,7 @@ export class RunService {
         const entry = { controller, task: Promise.resolve() };
         this.active.set(request.id, entry);
         entry.task = (async () => {
-          const current = await this.store.get(request.id);
+          const current = await this.retry(() => this.store.get(request.id));
           if (current?.status === "cancelling") controller.abort();
           await this.execute(request, controller);
         })()
@@ -57,6 +57,16 @@ export class RunService {
         this.creating.delete(request.id);
     }
   }
+  private async retry<T>(operation: () => Promise<T>): Promise<T> {
+    for (;;) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (this.stopping) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+  }
   private async execute(
     request: RunRequest,
     controller: AbortController,
@@ -67,7 +77,9 @@ export class RunService {
       timeoutMs: request.timeoutMs,
       onStage: (stage) => this.store.status(request.id, stage),
     });
-    await this.store.status(request.id, result.status, result);
+    await this.retry(() =>
+      this.store.status(request.id, result.status, result),
+    );
   }
   async cancel(id: string) {
     const record = await this.store.get(id);

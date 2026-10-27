@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -15,6 +16,9 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
   throw new Error("PORT must be an integer between 1 and 65535");
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
+const apiToken = process.env.AGENTS_API_TOKEN ?? "";
+if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
+  throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
 const store = new RunStore(databaseUrl);
 await store.initialize();
 const agent = new ComputerAgent(
@@ -48,7 +52,23 @@ const server = createServer((request, response) => {
   void (async () => {
     if (request.method === "GET" && request.url === "/health")
       return send(response, 200, { status: "ok" });
+    const authorization = request.headers.authorization ?? "";
+    const provided = Buffer.from(authorization);
+    const expected = Buffer.from(`Bearer ${apiToken}`);
+    if (
+      request.headers.origin !== undefined ||
+      provided.length !== expected.length ||
+      !timingSafeEqual(provided, expected)
+    ) {
+      return send(response, 401, { error: "Unauthorized" });
+    }
     if (request.method === "POST" && request.url === "/runs") {
+      if (
+        !/^application\/json(?:\s*;|$)/i.test(
+          request.headers["content-type"] ?? "",
+        )
+      )
+        return send(response, 415, { error: "JSON content type required" });
       let input;
       try {
         input = parseRun(await readJson(request));
