@@ -3,7 +3,7 @@ import type { BrowserScreenshot } from "../browser/session.js";
 
 export type ModelDecision =
   | { type: "action"; action: ComputerAction }
-  | { type: "complete"; message: string };
+  | { type: "complete"; success: boolean; message: string };
 export type ModelContext = {
   instruction: string;
   screenshot: BrowserScreenshot;
