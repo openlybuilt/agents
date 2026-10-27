@@ -1,6 +1,6 @@
 import type { BrowserProvider, BrowserSession } from "../browser/session.js";
 import type { ComputerModel } from "../model/model.js";
-import { executeAction, type ComputerAction } from "./actions.js";
+import { executeAction, parseAction, type ComputerAction } from "./actions.js";
 import type { ActionEvidence, AgentResult } from "./result.js";
 
 export class ComputerAgent {
@@ -57,14 +57,17 @@ export class ComputerAgent {
           };
           break;
         }
+        const { name, ...arguments_ } = decision.action;
+        const action = parseAction(name, arguments_);
         const evidence: ActionEvidence = {
-          name: decision.action.name,
+          name: action.name,
           status: "failed",
         };
         actions.push(evidence);
-        await executeAction(session, decision.action);
+        await executeAction(session, action);
         evidence.status = "completed";
-        history.push(decision.action);
+        history.push(action);
+        signal.throwIfAborted();
       }
     } catch {
       result = options.signal?.aborted
