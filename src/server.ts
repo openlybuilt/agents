@@ -96,9 +96,10 @@ server.listen(Number(rawPort), "127.0.0.1", () =>
 );
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.once(signal, () => {
-    server.close();
-    void runs
-      .stop()
+    const closed = new Promise<void>((resolve) =>
+      server.close(() => resolve()),
+    );
+    void Promise.all([runs.stop(), closed])
       .then(() => store.close())
       .catch(() => {
         process.exitCode = 1;

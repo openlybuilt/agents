@@ -32,20 +32,35 @@ export class RunStore {
   async create(
     request: RunRequest,
   ): Promise<{ record: RunRecord; created: boolean }> {
-    const inserted = await this.pool.query(
-      "INSERT INTO agent_runs (id, instruction, max_steps, timeout_ms, status) VALUES ($1,$2,$3,$4,'provisioning') ON CONFLICT (id) DO NOTHING RETURNING id",
-      [request.id, request.instruction, request.maxSteps, request.timeoutMs],
-    );
-    const record = await this.get(request.id);
-    if (!record) throw new Error("Run insert failed");
-    if (
-      record.instruction !== request.instruction ||
-      record.maxSteps !== request.maxSteps ||
-      record.timeoutMs !== request.timeoutMs
-    )
-      throw new Error("Run ID already has different inputs");
-    return { record, created: (inserted.rowCount ?? 0) > 0 };
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const inserted = await client.query(
+        "INSERT INTO agent_runs (id, instruction, max_steps, timeout_ms, status) VALUES ($1,$2,$3,$4,'provisioning') ON CONFLICT (id) DO NOTHING RETURNING id",
+        [request.id, request.instruction, request.maxSteps, request.timeoutMs],
+      );
+      const fetched = await client.query(
+        'SELECT id, instruction, max_steps AS "maxSteps", timeout_ms AS "timeoutMs", status, result, created_at AS "createdAt", updated_at AS "updatedAt" FROM agent_runs WHERE id=$1',
+        [request.id],
+      );
+      const record = fetched.rows[0] as RunRecord | undefined;
+      if (!record) throw new Error("Run insert failed");
+      if (
+        record.instruction !== request.instruction ||
+        record.maxSteps !== request.maxSteps ||
+        record.timeoutMs !== request.timeoutMs
+      )
+        throw new Error("Run ID already has different inputs");
+      await client.query("COMMIT");
+      return { record, created: (inserted.rowCount ?? 0) > 0 };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
+
   async get(id: string): Promise<RunRecord | undefined> {
     const result = await this.pool.query(
       'SELECT id, instruction, max_steps AS "maxSteps", timeout_ms AS "timeoutMs", status, result, created_at AS "createdAt", updated_at AS "updatedAt" FROM agent_runs WHERE id = $1',
