@@ -18,5 +18,8 @@
     "@types/node": "24.10.1",
     "prettier": "3.7.4",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@onkernel/sdk": "0.87.0"
   }
 }
