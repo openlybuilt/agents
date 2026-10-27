@@ -68,17 +68,18 @@ const server = createServer((request, response) => {
         throw error;
       }
     }
-    const match = /^\/runs\/([0-9a-f-]{36})(\/cancel)?$/i.exec(
-      request.url ?? "",
-    );
+    const match =
+      /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(\/cancel)?$/i.exec(
+        request.url ?? "",
+      );
     if (match && request.method === "GET" && !match[2]) {
-      const record = await store.get(match[1]);
+      const record = await store.get(match[1].toLowerCase());
       return record
         ? send(response, 200, record)
         : send(response, 404, { error: "Run not found" });
     }
     if (match && request.method === "POST" && match[2]) {
-      const record = await runs.cancel(match[1]);
+      const record = await runs.cancel(match[1].toLowerCase());
       return record
         ? send(response, 200, record)
         : send(response, 404, { error: "Run not found" });
