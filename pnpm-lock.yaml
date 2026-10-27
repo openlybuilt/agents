@@ -1,18 +1,17 @@
-lockfileVersion: '9.0'
+lockfileVersion: "9.0"
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
 importers:
-
   .:
     dependencies:
-      '@onkernel/sdk':
+      "@onkernel/sdk":
         specifier: 0.87.0
         version: 0.87.0
     devDependencies:
-      '@types/node':
+      "@types/node":
         specifier: 24.10.1
         version: 24.10.1
       prettier:
@@ -23,31 +22,44 @@ importers:
         version: 5.9.3
 
 packages:
+  "@onkernel/sdk@0.87.0":
+    resolution:
+      {
+        integrity: sha512-95y8VGWyOthKg+0esaVXpHMInHuRYsU+6AjZSGK47pa9+oActRy3tqJscfxYRWSgWkI362D6/mAp9ElG9W2zWw==,
+      }
 
-  '@onkernel/sdk@0.87.0':
-    resolution: {integrity: sha512-95y8VGWyOthKg+0esaVXpHMInHuRYsU+6AjZSGK47pa9+oActRy3tqJscfxYRWSgWkI362D6/mAp9ElG9W2zWw==}
-
-  '@types/node@24.10.1':
-    resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
+  "@types/node@24.10.1":
+    resolution:
+      {
+        integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==,
+      }
 
   prettier@3.7.4:
-    resolution: {integrity: sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA==}
-    engines: {node: '>=14'}
+    resolution:
+      {
+        integrity: sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA==,
+      }
+    engines: { node: ">=14" }
     hasBin: true
 
   typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
-    engines: {node: '>=14.17'}
+    resolution:
+      {
+        integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==,
+      }
+    engines: { node: ">=14.17" }
     hasBin: true
 
   undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
+    resolution:
+      {
+        integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==,
+      }
 
 snapshots:
+  "@onkernel/sdk@0.87.0": {}
 
-  '@onkernel/sdk@0.87.0': {}
-
-  '@types/node@24.10.1':
+  "@types/node@24.10.1":
     dependencies:
       undici-types: 7.16.0
 

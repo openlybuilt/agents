@@ -1,4 +1,4 @@
-import Kernel from "@onkernel/sdk";
+import Kernel, { NotFoundError } from "@onkernel/sdk";
 import type {
   BrowserProvider,
   BrowserScreenshot,
@@ -113,6 +113,10 @@ class OnKernelSession implements BrowserSession {
         await this.client.browsers.deleteByID(this.id);
         this.closed = true;
       } catch (error) {
+        if (error instanceof NotFoundError) {
+          this.closed = true;
+          return;
+        }
         this.closing = false;
         this.closePromise = undefined;
         throw error;

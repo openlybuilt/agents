@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "browser:example": "node dist/browser/example.js"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
