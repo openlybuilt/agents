@@ -22,7 +22,14 @@ function tool(
   };
 }
 
-const integer = { type: "integer" };
+const coordinate = {
+  type: "integer",
+  description: "Pixel coordinate from 0 through 16384, inclusive",
+};
+const scrollAmount = {
+  type: "integer",
+  description: "Wheel units from -100 through 100, inclusive",
+};
 const tools: FunctionTool[] = [
   tool(
     "finish",
@@ -33,18 +40,18 @@ const tools: FunctionTool[] = [
     url: { type: "string" },
   }),
   tool("click", "Click screenshot pixel coordinates", {
-    x: integer,
-    y: integer,
+    x: coordinate,
+    y: coordinate,
   }),
   tool("type", "Type text", { text: { type: "string" } }),
   tool("press_keys", "Press X11 keys, e.g. Return or Ctrl+l", {
     keys: { type: "array", items: { type: "string" } },
   }),
   tool("scroll", "Scroll at pixel coordinates using wheel units", {
-    x: integer,
-    y: integer,
-    deltaX: integer,
-    deltaY: integer,
+    x: coordinate,
+    y: coordinate,
+    deltaX: scrollAmount,
+    deltaY: scrollAmount,
   }),
 ];
 
