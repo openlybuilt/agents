@@ -16,11 +16,13 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "@types/pg": "8.15.6",
     "prettier": "3.7.4",
     "typescript": "5.9.3"
   },
   "dependencies": {
     "@onkernel/sdk": "0.87.0",
-    "openai": "6.48.0"
+    "openai": "6.48.0",
+    "pg": "8.16.3"
   }
 }
