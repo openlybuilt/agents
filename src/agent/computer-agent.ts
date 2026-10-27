@@ -30,6 +30,7 @@ export class ComputerAgent {
       ? AbortSignal.any([options.signal, timeout])
       : timeout;
     const history: ComputerAction[] = [];
+    const observations: string[] = [];
     const actions: ActionEvidence[] = [];
     let session: BrowserSession | undefined;
     let stage = "Browser session creation";
@@ -48,7 +49,12 @@ export class ComputerAgent {
         signal.throwIfAborted();
         stage = "Model decision";
         const decision = await this.model.decide(
-          { instruction, screenshot, previousActions: history },
+          {
+            instruction,
+            screenshot,
+            previousActions: history,
+            previousObservations: observations,
+          },
           signal,
         );
         signal.throwIfAborted();
@@ -61,6 +67,11 @@ export class ComputerAgent {
           break;
         }
         stage = "Action validation";
+        if (
+          typeof decision.observation !== "string" ||
+          decision.observation.length > 2000
+        )
+          throw new Error("Invalid observation");
         const { name, ...arguments_ } = decision.action;
         const action = parseAction(name, arguments_);
         const evidence: ActionEvidence = {
@@ -72,6 +83,7 @@ export class ComputerAgent {
         await executeAction(session, action);
         evidence.status = "completed";
         history.push(action);
+        observations.push(decision.observation);
         signal.throwIfAborted();
       }
     } catch {
