@@ -1,14 +1,20 @@
+import {
+  parseWorkflow,
+  type ResolvedWorkflow,
+} from "../workflow/definition.js";
 export type RunRequest = {
   id: string;
   instruction: string;
   maxSteps: number;
   timeoutMs: number;
+  workflow?: ResolvedWorkflow;
 };
 export type RunRecord = RunRequest & {
   status: string;
   result: unknown;
   createdAt: string;
   updatedAt: string;
+  steps?: unknown;
 };
 export function parseRun(value: unknown): RunRequest {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -16,7 +22,10 @@ export function parseRun(value: unknown): RunRequest {
   const r = value as Record<string, unknown>;
   if (
     Object.keys(r).some(
-      (key) => !["id", "instruction", "maxSteps", "timeoutMs"].includes(key),
+      (key) =>
+        !["id", "instruction", "maxSteps", "timeoutMs", "workflow"].includes(
+          key,
+        ),
     )
   )
     throw new Error("Unknown run field");
@@ -54,5 +63,8 @@ export function parseRun(value: unknown): RunRequest {
     instruction: r.instruction,
     maxSteps,
     timeoutMs,
+    ...(r.workflow === undefined
+      ? {}
+      : { workflow: parseWorkflow(r.workflow) }),
   };
 }

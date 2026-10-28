@@ -1,6 +1,7 @@
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { RunRequest } from "./contracts.js";
 import { RunStore } from "./store.js";
+import type { WorkflowRunner } from "../workflow/runner.js";
 
 export class RunService {
   private readonly active = new Map<
@@ -12,6 +13,7 @@ export class RunService {
   constructor(
     private readonly store: RunStore,
     private readonly agent: ComputerAgent,
+    private readonly workflows: WorkflowRunner,
   ) {}
   async create(request: RunRequest) {
     if (this.stopping) throw new Error("Service is stopping");
@@ -71,12 +73,19 @@ export class RunService {
     request: RunRequest,
     controller: AbortController,
   ): Promise<void> {
-    const result = await this.agent.run(request.instruction, {
+    const options = {
       signal: controller.signal,
       maxSteps: request.maxSteps,
       timeoutMs: request.timeoutMs,
-      onStage: (stage) => this.store.status(request.id, stage),
-    });
+      onStage: (stage: "running" | "cleaning_up") =>
+        this.store.status(request.id, stage),
+    };
+    const result = request.workflow
+      ? await this.workflows.run(request.workflow, {
+          ...options,
+          onStep: (steps) => this.store.progress(request.id, steps),
+        })
+      : await this.agent.run(request.instruction, options);
     await this.retry(() =>
       this.store.status(request.id, result.status, result),
     );

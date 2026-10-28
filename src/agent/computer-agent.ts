@@ -16,6 +16,7 @@ export class ComputerAgent {
       maxSteps?: number;
       timeoutMs?: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
+      session?: BrowserSession;
     } = {},
   ): Promise<AgentResult> {
     const maxSteps = options.maxSteps ?? 20;
@@ -42,8 +43,8 @@ export class ComputerAgent {
     };
     try {
       signal.throwIfAborted();
-      session = await this.browser.open({ signal });
-      await options.onStage?.("running");
+      session = options.session ?? (await this.browser.open({ signal }));
+      if (!options.session) await options.onStage?.("running");
       for (let step = 0; step < maxSteps; step++) {
         signal.throwIfAborted();
         stage = "Screenshot capture";
@@ -99,7 +100,7 @@ export class ComputerAgent {
               actions,
             };
     } finally {
-      if (session) {
+      if (session && !options.session) {
         try {
           await options.onStage?.("cleaning_up");
         } catch {

@@ -10,6 +10,7 @@ import { OpenAIComputerModel } from "./model/openai.js";
 import { parseRun } from "./runs/contracts.js";
 import { RunService } from "./runs/service.js";
 import { RunStore } from "./runs/store.js";
+import { WorkflowRunner } from "./workflow/runner.js";
 
 const rawPort = process.env.PORT ?? "3100";
 if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
@@ -21,14 +22,15 @@ if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
   throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
 const store = new RunStore(databaseUrl);
 await store.initialize();
+const browser = new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? "");
 const agent = new ComputerAgent(
-  new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? ""),
+  browser,
   new OpenAIComputerModel(
     process.env.OPENAI_API_KEY ?? "",
     process.env.OPENAI_MODEL ?? "",
   ),
 );
-const runs = new RunService(store, agent);
+const runs = new RunService(store, agent, new WorkflowRunner(browser, agent));
 function send(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(value));
