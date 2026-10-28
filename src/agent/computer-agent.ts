@@ -17,6 +17,7 @@ export class ComputerAgent {
       timeoutMs?: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       session?: BrowserSession;
+      allowedActions?: ComputerAction["name"][];
     } = {},
   ): Promise<AgentResult> {
     const maxSteps = options.maxSteps ?? 20;
@@ -78,6 +79,11 @@ export class ComputerAgent {
           throw new Error("Invalid observation");
         const { name, ...arguments_ } = decision.action;
         const action = parseAction(name, arguments_);
+        if (
+          options.allowedActions &&
+          !options.allowedActions.includes(action.name)
+        )
+          throw new Error("Action is not allowed for this step");
         const evidence: ActionEvidence = {
           name: action.name,
           status: "failed",
