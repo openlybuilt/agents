@@ -83,8 +83,15 @@ export class RunStore {
   }
   async status(id: string, status: string, result?: unknown): Promise<void> {
     await this.pool.query(
-      "UPDATE agent_runs SET status=$2, result=COALESCE($3::jsonb,result), updated_at=now() WHERE id=$1 AND (status <> 'cancelling' OR $2 NOT IN ('running', 'cleaning_up')) AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')",
-      [id, status, result === undefined ? null : JSON.stringify(result)],
+      "UPDATE agent_runs SET status=$2, result=COALESCE($3::jsonb,result), steps=COALESCE($4::jsonb,steps), updated_at=now() WHERE id=$1 AND (status <> 'cancelling' OR $2 NOT IN ('running', 'cleaning_up')) AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')",
+      [
+        id,
+        status,
+        result === undefined ? null : JSON.stringify(result),
+        result && typeof result === "object" && "steps" in result
+          ? JSON.stringify(result.steps)
+          : null,
+      ],
     );
   }
   async progress(id: string, steps: unknown): Promise<void> {

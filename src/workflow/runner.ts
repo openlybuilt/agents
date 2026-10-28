@@ -79,6 +79,9 @@ export class WorkflowRunner {
         await options.onStep?.(steps);
       }
     } catch {
+      const current = steps.at(-1);
+      if (current?.status === "running")
+        current.status = options.signal.aborted ? "cancelled" : "failed";
       result = {
         status: options.signal.aborted ? "cancelled" : "failed",
         message: options.signal.aborted
