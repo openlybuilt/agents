@@ -90,6 +90,21 @@ const server = createServer((request, response) => {
         throw error;
       }
     }
+    const recordingMatch =
+      /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/recording$/i.exec(
+        request.url ?? "",
+      );
+    if (recordingMatch && request.method === "GET") {
+      const video = await store.getRecording(recordingMatch[1]!.toLowerCase());
+      if (!video) return send(response, 404, { error: "Recording not found" });
+      response.writeHead(200, {
+        "content-type": "video/mp4",
+        "content-length": video.length,
+        "cache-control": "no-store",
+      });
+      response.end(video);
+      return;
+    }
     const match =
       /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(\/cancel)?$/i.exec(
         request.url ?? "",

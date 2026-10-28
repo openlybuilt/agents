@@ -13,6 +13,7 @@ export type WorkflowResult = {
   message: string;
   steps: StepResult[];
   cleanupError?: string;
+  recordingStatus?: "saved" | "failed";
 };
 export class WorkflowRunner {
   constructor(
@@ -28,12 +29,15 @@ export class WorkflowRunner {
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
       onLiveView?: (url?: string) => void;
+      saveRecording: (video: Uint8Array) => Promise<void>;
     },
   ): Promise<WorkflowResult> {
     const timeout = AbortSignal.timeout(options.timeoutMs);
     const signal = AbortSignal.any([options.signal, timeout]);
     const steps: StepResult[] = [];
     let session: BrowserSession | undefined;
+    let recordingStarted = false;
+    let recordingStatus: "saved" | "failed" = "failed";
     let result: WorkflowResult = {
       status: "completed",
       message: "Workflow completed",
@@ -42,6 +46,12 @@ export class WorkflowRunner {
     try {
       signal.throwIfAborted();
       session = await this.browser.open({ signal });
+      try {
+        await session.startRecording();
+        recordingStarted = true;
+      } catch {
+        /* Workflow execution remains independent of recording. */
+      }
       options.onLiveView?.(session.liveViewUrl);
       await options.onStage?.("running");
       for (let i = 0; i < workflow.steps.length; i++) {
@@ -102,6 +112,15 @@ export class WorkflowRunner {
     } finally {
       if (session) {
         options.onLiveView?.(undefined);
+        if (recordingStarted) {
+          try {
+            const video = await session.finishRecording();
+            await options.saveRecording(video);
+            recordingStatus = "saved";
+          } catch {
+            recordingStatus = "failed";
+          }
+        }
         try {
           await options.onStage?.("cleaning_up");
         } catch {
@@ -122,6 +141,6 @@ export class WorkflowRunner {
         }
       }
     }
-    return result;
+    return { ...result, recordingStatus };
   }
 }

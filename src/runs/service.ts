@@ -90,6 +90,7 @@ export class RunService {
       ? await this.workflows.run(request.workflow, {
           ...options,
           onStep: (steps) => this.store.progress(request.id, steps),
+          saveRecording: (video) => this.store.saveRecording(request.id, video),
           onLiveView: (url) => {
             if (url) this.liveViews.set(request.id, url);
             else this.liveViews.delete(request.id);

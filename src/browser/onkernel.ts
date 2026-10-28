@@ -16,6 +16,7 @@ class OnKernelSession implements BrowserSession {
   private closing = false;
   private closed = false;
   private closePromise?: Promise<void>;
+  private replayId?: string;
 
   constructor(
     private readonly client: Kernel,
@@ -33,6 +34,44 @@ class OnKernelSession implements BrowserSession {
       () => undefined,
     );
     return result;
+  }
+
+  startRecording(): Promise<void> {
+    return this.run(async () => {
+      const replay = await this.client.browsers.replays.start(this.id, {
+        record_audio: false,
+      });
+      this.replayId = replay.replay_id;
+    });
+  }
+
+  finishRecording(): Promise<Uint8Array> {
+    return this.run(async () => {
+      if (!this.replayId) throw new Error("Recording was not started");
+      await this.client.browsers.replays.stop(this.replayId, { id: this.id });
+      const response = await this.client.browsers.replays.download(
+        this.replayId,
+        { id: this.id },
+      );
+      const limit = 100 * 1024 * 1024;
+      if (!response.ok || !response.body)
+        throw new Error("Recording download failed");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > limit) {
+          await reader.cancel();
+          throw new Error("Recording exceeds size limit");
+        }
+        chunks.push(value);
+      }
+      if (!size) throw new Error("Recording is empty");
+      return Buffer.concat(chunks);
+    });
   }
 
   screenshot(): Promise<BrowserScreenshot> {

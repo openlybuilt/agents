@@ -31,6 +31,11 @@ export class RunStore {
       "utf8",
     );
     await this.pool.query(workflowMigration);
+    const recordingMigration = await readFile(
+      new URL("../../migrations/003_recordings.sql", import.meta.url),
+      "utf8",
+    );
+    await this.pool.query(recordingMigration);
     await this.pool.query(
       "UPDATE agent_runs SET status = 'interrupted', updated_at = now() WHERE status IN ('provisioning', 'running', 'cleaning_up', 'cancelling')",
     );
@@ -99,6 +104,19 @@ export class RunStore {
       "UPDATE agent_runs SET steps=$2::jsonb, updated_at=now() WHERE id=$1 AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')",
       [id, JSON.stringify(steps)],
     );
+  }
+  async saveRecording(id: string, video: Uint8Array): Promise<void> {
+    await this.pool.query(
+      "INSERT INTO run_recordings (run_id, video) VALUES ($1,$2) ON CONFLICT (run_id) DO UPDATE SET video=EXCLUDED.video",
+      [id, Buffer.from(video)],
+    );
+  }
+  async getRecording(id: string): Promise<Buffer | undefined> {
+    const result = await this.pool.query(
+      "SELECT video FROM run_recordings WHERE run_id=$1",
+      [id],
+    );
+    return result.rows[0]?.video as Buffer | undefined;
   }
   async close(): Promise<void> {
     await this.pool.end();
