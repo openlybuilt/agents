@@ -9,6 +9,12 @@ export class RunService {
     { controller: AbortController; task: Promise<void> }
   >();
   private stopping = false;
+  private readonly liveViews = new Map<string, string>();
+  async get(id: string) {
+    const record = await this.store.get(id);
+    const url = this.liveViews.get(id);
+    return record && url ? { ...record, liveViewUrl: url } : record;
+  }
   private readonly creating = new Map<string, Promise<unknown>>();
   constructor(
     private readonly store: RunStore,
@@ -84,6 +90,10 @@ export class RunService {
       ? await this.workflows.run(request.workflow, {
           ...options,
           onStep: (steps) => this.store.progress(request.id, steps),
+          onLiveView: (url) => {
+            if (url) this.liveViews.set(request.id, url);
+            else this.liveViews.delete(request.id);
+          },
         })
       : await this.agent.run(request.instruction, options);
     await this.retry(() =>

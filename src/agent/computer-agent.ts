@@ -36,6 +36,7 @@ export class ComputerAgent {
     const actions: ActionEvidence[] = [];
     let session: BrowserSession | undefined;
     let stage = "Browser session creation";
+    let actionName: string | undefined;
     let result: AgentResult = {
       status: "failed",
       message: "Step limit reached",
@@ -83,20 +84,28 @@ export class ComputerAgent {
         };
         actions.push(evidence);
         stage = "Browser action";
+        actionName = action.name;
         await executeAction(session, action);
         evidence.status = "completed";
         history.push(action);
         observations.push(decision.observation);
         signal.throwIfAborted();
       }
-    } catch {
+    } catch (error) {
+      const status =
+        error &&
+        typeof error === "object" &&
+        "status" in error &&
+        typeof error.status === "number"
+          ? ` (provider status ${error.status})`
+          : "";
       result = options.signal?.aborted
         ? { status: "cancelled", message: "Run cancelled", actions }
         : timeout.aborted
           ? { status: "failed", message: "Run timed out", actions }
           : {
               status: "failed",
-              message: `${stage} failed`,
+              message: `${stage}${stage === "Browser action" && actionName ? ` (${actionName})` : ""} failed${status}`,
               actions,
             };
     } finally {

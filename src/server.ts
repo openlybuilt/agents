@@ -95,7 +95,7 @@ const server = createServer((request, response) => {
         request.url ?? "",
       );
     if (match && request.method === "GET" && !match[2]) {
-      const record = await store.get(match[1].toLowerCase());
+      const record = await runs.get(match[1].toLowerCase());
       return record
         ? send(response, 200, record)
         : send(response, 404, { error: "Run not found" });

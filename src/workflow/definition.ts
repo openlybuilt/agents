@@ -3,6 +3,7 @@ export type WorkflowStep =
   | { type: "type"; text: string }
   | { type: "press_keys"; keys: string[] }
   | { type: "click"; x: number; y: number }
+  | { type: "click"; target: string }
   | { type: "ai"; instruction: string };
 export type ResolvedWorkflow = { steps: WorkflowStep[] };
 
@@ -62,6 +63,14 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
       )
     )
       return { type: "press_keys", keys: step.keys as string[] };
+    if (
+      step.type === "click" &&
+      exact("type", "target") &&
+      typeof step.target === "string" &&
+      step.target.trim().length > 0 &&
+      step.target.length <= 10000
+    )
+      return { type: "click", target: step.target };
     if (
       step.type === "click" &&
       exact("type", "x", "y") &&

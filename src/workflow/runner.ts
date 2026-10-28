@@ -27,6 +27,7 @@ export class WorkflowRunner {
       maxSteps: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
+      onLiveView?: (url?: string) => void;
     },
   ): Promise<WorkflowResult> {
     const timeout = AbortSignal.timeout(options.timeoutMs);
@@ -41,6 +42,7 @@ export class WorkflowRunner {
     try {
       signal.throwIfAborted();
       session = await this.browser.open({ signal });
+      options.onLiveView?.(session.liveViewUrl);
       await options.onStage?.("running");
       for (let i = 0; i < workflow.steps.length; i++) {
         signal.throwIfAborted();
@@ -57,14 +59,20 @@ export class WorkflowRunner {
           else if (step.type === "type") await session.type(step.text);
           else if (step.type === "press_keys")
             await session.pressKeys(step.keys);
-          else if (step.type === "click") await session.click(step.x, step.y);
+          else if (step.type === "click" && "x" in step)
+            await session.click(step.x, step.y);
           else {
-            const agentResult = await this.agent.run(step.instruction, {
-              session,
-              signal,
-              timeoutMs: options.timeoutMs,
-              maxSteps: options.maxSteps,
-            });
+            const agentResult = await this.agent.run(
+              step.type === "click"
+                ? `Click the following visible target: ${step.target}. Click only that target, then finish.`
+                : step.instruction,
+              {
+                session,
+                signal,
+                timeoutMs: options.timeoutMs,
+                maxSteps: options.maxSteps,
+              },
+            );
             evidence.message = agentResult.message;
             if (agentResult.status !== "completed")
               throw new Error("AI step did not complete");
@@ -93,6 +101,7 @@ export class WorkflowRunner {
       };
     } finally {
       if (session) {
+        options.onLiveView?.(undefined);
         try {
           await options.onStage?.("cleaning_up");
         } catch {

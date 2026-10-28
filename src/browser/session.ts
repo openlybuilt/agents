@@ -4,6 +4,7 @@ export interface BrowserScreenshot {
 }
 
 export interface BrowserSession {
+  readonly liveViewUrl?: string;
   screenshot(): Promise<BrowserScreenshot>;
   navigate(url: string): Promise<void>;
   click(x: number, y: number): Promise<void>;

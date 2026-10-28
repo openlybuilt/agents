@@ -20,6 +20,7 @@ class OnKernelSession implements BrowserSession {
   constructor(
     private readonly client: Kernel,
     private readonly id: string,
+    readonly liveViewUrl?: string,
   ) {}
 
   private run<T>(action: () => Promise<T>): Promise<T> {
@@ -137,7 +138,11 @@ export class OnKernelProvider implements BrowserProvider {
       headless: false,
       timeout_seconds: 60,
     });
-    const session = new OnKernelSession(this.client, browser.session_id);
+    const session = new OnKernelSession(
+      this.client,
+      browser.session_id,
+      browser.browser_live_view_url,
+    );
     if (options.signal?.aborted) {
       try {
         await session.close();
