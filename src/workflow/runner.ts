@@ -73,6 +73,7 @@ export class WorkflowRunner {
           evidence.status = "completed";
         } catch (error) {
           evidence.status = options.signal.aborted ? "cancelled" : "failed";
+          await options.onStep?.(steps);
           throw error;
         }
         await options.onStep?.(steps);

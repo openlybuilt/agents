@@ -53,15 +53,11 @@ class OnKernelSession implements BrowserSession {
       throw new Error("Navigation requires an HTTP or HTTPS URL");
     }
     return this.run(async () => {
-      await this.client.browsers.computer.pressKey(this.id, {
-        keys: ["Ctrl+l"],
+      const result = await this.client.browsers.playwright.execute(this.id, {
+        code: `await page.goto(${JSON.stringify(parsed.href)}, { waitUntil: "domcontentloaded", timeout: 30000 });`,
+        timeout_sec: 35,
       });
-      await this.client.browsers.computer.typeText(this.id, {
-        text: parsed.href,
-      });
-      await this.client.browsers.computer.pressKey(this.id, {
-        keys: ["Return"],
-      });
+      if (!result.success) throw new Error("Browser navigation failed");
     });
   }
 
