@@ -29,6 +29,7 @@ export class WorkflowRunner {
       maxSteps: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
+      onEvent?: (event: Record<string, unknown>) => Promise<void>;
       onLiveView?: (url?: string) => void;
       saveRecording: (video: Uint8Array) => Promise<void>;
     },
@@ -63,6 +64,10 @@ export class WorkflowRunner {
           type: step.type,
           status: "running",
         };
+        const stepStarted = Date.now();
+        const onEvent = (event: Record<string, unknown>) =>
+          options.onEvent?.({ ...event, stepIndex: i }) ?? Promise.resolve();
+        await onEvent({ kind: "step", stepType: step.type, status: "running" });
         steps.push(evidence);
         await options.onStep?.(steps);
         try {
@@ -79,6 +84,7 @@ export class WorkflowRunner {
                   timeoutMs: options.timeoutMs,
                   maxSteps: options.maxSteps,
                   allowedActions: ["click", "scroll"],
+                  onEvent,
                 },
               );
               const last = focus.actions.at(-1);
@@ -110,6 +116,7 @@ export class WorkflowRunner {
                 signal,
                 timeoutMs: options.timeoutMs,
                 maxSteps: options.maxSteps,
+                onEvent,
               },
             );
             evidence.message = agentResult.message;
@@ -120,9 +127,21 @@ export class WorkflowRunner {
           evidence.status = "completed";
         } catch (error) {
           evidence.status = options.signal.aborted ? "cancelled" : "failed";
+          await onEvent({
+            kind: "step",
+            stepType: step.type,
+            status: evidence.status,
+            durationMs: Date.now() - stepStarted,
+          });
           await options.onStep?.(steps);
           throw error;
         }
+        await onEvent({
+          kind: "step",
+          stepType: step.type,
+          status: "completed",
+          durationMs: Date.now() - stepStarted,
+        });
         await options.onStep?.(steps);
       }
     } catch {

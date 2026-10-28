@@ -37,6 +37,12 @@ export class RunStore {
     );
     await this.pool.query(recordingMigration);
     await this.pool.query(
+      await readFile(
+        new URL("../../migrations/004_run_events.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    await this.pool.query(
       "UPDATE agent_runs SET status = 'interrupted', updated_at = now() WHERE status IN ('provisioning', 'running', 'cleaning_up', 'cancelling')",
     );
   }
@@ -104,6 +110,19 @@ export class RunStore {
       "UPDATE agent_runs SET steps=$2::jsonb, updated_at=now() WHERE id=$1 AND status NOT IN ('completed', 'failed', 'cancelled', 'interrupted')",
       [id, JSON.stringify(steps)],
     );
+  }
+  async appendEvent(id: string, event: Record<string, unknown>): Promise<void> {
+    await this.pool.query(
+      "INSERT INTO run_events (run_id, event) VALUES ($1, $2::jsonb)",
+      [id, JSON.stringify({ ...event, timestamp: new Date().toISOString() })],
+    );
+  }
+  async events(id: string): Promise<unknown[]> {
+    const result = await this.pool.query(
+      "SELECT event FROM run_events WHERE run_id=$1 ORDER BY id LIMIT 10000",
+      [id],
+    );
+    return result.rows.map((row) => row.event);
   }
   async saveRecording(id: string, video: Uint8Array): Promise<void> {
     await this.pool.query(

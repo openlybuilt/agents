@@ -18,6 +18,7 @@ export class ComputerAgent {
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       session?: BrowserSession;
       allowedActions?: ComputerAction["name"][];
+      onEvent?: (event: Record<string, unknown>) => Promise<void>;
     } = {},
   ): Promise<AgentResult> {
     const maxSteps = options.maxSteps ?? 20;
@@ -53,15 +54,32 @@ export class ComputerAgent {
         const screenshot = await session.screenshot();
         signal.throwIfAborted();
         stage = "Model decision";
-        const decision = await this.model.decide(
-          {
-            instruction,
-            screenshot,
-            previousActions: history,
-            previousObservations: observations,
-          },
-          signal,
-        );
+        const started = Date.now();
+        let decision;
+        try {
+          decision = await this.model.decide(
+            {
+              instruction,
+              screenshot,
+              previousActions: history,
+              previousObservations: observations,
+            },
+            signal,
+          );
+          await options.onEvent?.({
+            kind: "model",
+            status: "completed",
+            durationMs: Date.now() - started,
+            ...(decision.usage ? { usage: decision.usage } : {}),
+          });
+        } catch (error) {
+          await options.onEvent?.({
+            kind: "model",
+            status: "failed",
+            durationMs: Date.now() - started,
+          });
+          throw error;
+        }
         signal.throwIfAborted();
         if (decision.type === "complete") {
           result = {
@@ -91,7 +109,24 @@ export class ComputerAgent {
         actions.push(evidence);
         stage = "Browser action";
         actionName = action.name;
-        await executeAction(session, action);
+        const actionStarted = Date.now();
+        try {
+          await executeAction(session, action);
+          await options.onEvent?.({
+            kind: "action",
+            action: action.name,
+            status: "completed",
+            durationMs: Date.now() - actionStarted,
+          });
+        } catch (error) {
+          await options.onEvent?.({
+            kind: "action",
+            action: action.name,
+            status: "failed",
+            durationMs: Date.now() - actionStarted,
+          });
+          throw error;
+        }
         evidence.status = "completed";
         history.push(action);
         observations.push(decision.observation);

@@ -90,6 +90,16 @@ const server = createServer((request, response) => {
         throw error;
       }
     }
+    const eventsMatch =
+      /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/events$/i.exec(
+        request.url ?? "",
+      );
+    if (eventsMatch && request.method === "GET") {
+      const id = eventsMatch[1]!.toLowerCase();
+      if (!(await store.get(id)))
+        return send(response, 404, { error: "Run not found" });
+      return send(response, 200, await store.events(id));
+    }
     const recordingMatch =
       /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/recording$/i.exec(
         request.url ?? "",

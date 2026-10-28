@@ -83,6 +83,13 @@ export class RunService {
       signal: controller.signal,
       maxSteps: request.maxSteps,
       timeoutMs: request.timeoutMs,
+      onEvent: async (event: Record<string, unknown>) => {
+        try {
+          await this.store.appendEvent(request.id, event);
+        } catch {
+          console.error("Failed to persist run event");
+        }
+      },
       onStage: (stage: "running" | "cleaning_up") =>
         this.store.status(request.id, stage),
     };
