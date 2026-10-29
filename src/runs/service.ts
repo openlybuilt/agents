@@ -15,6 +15,7 @@ type ActiveRun = {
   readinessTask?: Promise<void>;
   task: Promise<void>;
   recordingDisabled: boolean;
+  recordingController: AbortController;
   stopRecording?: () => Promise<void>;
 };
 
@@ -48,6 +49,7 @@ export class RunService {
       readinessController: new AbortController(),
       task: Promise.resolve(),
       recordingDisabled: !request.recordingEnabled,
+      recordingController: new AbortController(),
     };
     this.active.set(request.id, run);
     run.task = this.execute(run)
@@ -146,6 +148,24 @@ export class RunService {
                   onRecordingError: () => {
                     recordingFailed = true;
                   },
+                  onRecordingComplete: async (
+                    capture: ComputerRecording,
+                    signal: AbortSignal,
+                  ) => {
+                    if (recordingFailed || run.recordingDisabled)
+                      throw new Error("Run recording was unavailable");
+                    const deadline = AbortSignal.any([
+                      signal,
+                      run.recordingController.signal,
+                    ]);
+                    const video = await capture.download(deadline);
+                    deadline.throwIfAborted();
+                    await this.backend.uploadRecording(
+                      request.id,
+                      video,
+                      deadline,
+                    );
+                  },
                 }
               : {}),
             onLiveView: (url) =>
@@ -176,27 +196,21 @@ export class RunService {
     if (
       request.workflow &&
       request.recordingEnabled &&
-      !run.recordingDisabled
-    ) {
-      try {
-        if (!recording || recordingFailed)
-          throw new Error("Run recording was unavailable");
-        const video = await recording.download();
-        await this.backend.uploadRecording(request.id, video);
-      } catch {
-        await this.backend
-          .recordingStatus(request.id, "failed")
-          .catch(() =>
-            console.error("Recording failure could not reach backend"),
-          );
-      }
-    }
+      !run.recordingDisabled &&
+      (!recording || recordingFailed)
+    )
+      await this.backend
+        .recordingStatus(request.id, "failed")
+        .catch(() =>
+          console.error("Recording failure could not reach backend"),
+        );
   }
 
   async disableRecording(id: string) {
     const run = this.active.get(id);
     if (!run) return undefined;
     run.recordingDisabled = true;
+    run.recordingController.abort();
     try {
       await run.stopRecording?.();
     } catch (error) {

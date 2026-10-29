@@ -50,58 +50,44 @@ class OnKernelSession implements ComputerSession {
       return {
         browserId: this.id,
         replayId: replay.replay_id,
-        download: () => this.downloadRecording(),
+        download: (signal) => this.downloadRecording(signal),
       };
     });
   }
 
-  stopRecording(): Promise<void> {
+  stopRecording(signal?: AbortSignal): Promise<void> {
     return this.run(async () => {
       if (!this.replayId) throw new Error("Recording was not started");
       if (this.replayStopped) return;
       await this.client.browsers.replays.stop(
         this.replayId,
         { id: this.id },
-        { signal: AbortSignal.timeout(15000) },
+        {
+          signal: AbortSignal.any([
+            AbortSignal.timeout(15000),
+            ...(signal ? [signal] : []),
+          ]),
+        },
       );
       this.replayStopped = true;
     }, true);
   }
 
-  private async downloadRecording(): Promise<Uint8Array<ArrayBuffer>> {
+  private async downloadRecording(
+    signal: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
     if (!this.replayId || !this.replayStopped)
       throw new Error("Recording has not finished");
     const response = await this.client.browsers.replays.download(
       this.replayId,
       { id: this.id },
-      { signal: AbortSignal.timeout(60000) },
+      { signal, headers: { "accept-encoding": "identity" } },
     );
-    const limit = 100 * 1024 * 1024;
-    if (
-      !response.ok ||
-      !response.body ||
-      Number(response.headers.get("content-length")) > limit
-    ) {
+    if (response.status !== 200 || !response.body) {
       await response.body?.cancel();
-      throw new Error("Recording download failed or exceeds size limit");
+      throw new Error("Recording download failed");
     }
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.length;
-        if (size > limit) throw new Error("Recording exceeds size limit");
-        chunks.push(value);
-      }
-      if (!size) throw new Error("Recording is empty");
-      return Buffer.concat(chunks, size);
-    } finally {
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-    }
+    return response.body;
   }
 
   private run<T>(action: () => Promise<T>, cleanup = false): Promise<T> {
@@ -224,14 +210,17 @@ class OnKernelSession implements ComputerSession {
     });
   }
 
-  close(): Promise<void> {
+  close(signal?: AbortSignal): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     this.closePromise = this.tail.then(async () => {
       try {
         await this.client.browsers.deleteByID(this.id, {
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.any([
+            AbortSignal.timeout(15000),
+            ...(signal ? [signal] : []),
+          ]),
         });
         this.closed = true;
       } catch (error) {

@@ -400,20 +400,28 @@ class DaytonaSession implements ComputerSession {
   startRecording(): Promise<ComputerRecording> {
     return this.run(() => this.recorder!.start(this.signal));
   }
-  stopRecording(): Promise<void> {
-    const stopped = this.recorder!.finish(this.tail);
+  stopRecording(signal?: AbortSignal): Promise<void> {
+    const stopped = this.recorder!.finish(this.tail, signal);
     this.tail = stopped.catch(() => undefined);
     return stopped;
   }
-  close(): Promise<void> {
+  close(deadline?: AbortSignal): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     this.controller.abort();
     this.closePromise = (async () => {
-      const signal = AbortSignal.timeout(20000);
+      const signal = AbortSignal.any([
+        AbortSignal.timeout(20000),
+        ...(deadline ? [deadline] : []),
+      ]);
       if (this.recorder)
-        await this.recorder.finish(this.tail).catch(() => undefined);
+        await this.recorder
+          .finish(
+            this.tail,
+            AbortSignal.any([signal, AbortSignal.timeout(10000)]),
+          )
+          .catch(() => undefined);
       else await this.tail;
       if (!this.id && this.ambiguousCreate) {
         const until = Date.now() + 10000;

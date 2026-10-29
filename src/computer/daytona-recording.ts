@@ -7,7 +7,9 @@ export class DaytonaRecording {
   private starting?: Promise<ComputerRecording>;
   private finishing?: Promise<void>;
   private cleanup?: AbortSignal;
-  private video?: Uint8Array<ArrayBuffer>;
+  private exporting?: AbortSignal;
+  private size?: number;
+  private stopped = false;
 
   constructor(
     private readonly api: DaytonaApi,
@@ -17,6 +19,13 @@ export class DaytonaRecording {
 
   get cleanupSignal(): AbortSignal {
     return (this.cleanup ??= AbortSignal.timeout(20000));
+  }
+
+  private get exportSignal(): AbortSignal {
+    return (this.exporting ??= AbortSignal.any([
+      this.cleanupSignal,
+      AbortSignal.timeout(10000),
+    ]));
   }
 
   start(signal: AbortSignal): Promise<ComputerRecording> {
@@ -43,37 +52,44 @@ export class DaytonaRecording {
     return {
       browserId: this.vmId,
       replayId: this.id,
-      download: async () => {
-        if (!this.video) throw new DaytonaError("Windows recording export");
-        return this.video;
+      download: async (signal) => {
+        if (!this.stopped) throw new DaytonaError("Windows recording export");
+        return this.api.download(
+          this.base,
+          "computeruse/recordings/" +
+            encodeURIComponent(this.id!) +
+            "/download",
+          AbortSignal.any([this.exportSignal, signal]),
+          this.size,
+        );
       },
     };
   }
 
-  finish(pending = Promise.resolve()): Promise<void> {
+  finish(pending = Promise.resolve(), signal?: AbortSignal): Promise<void> {
     if (this.finishing) return this.finishing;
-    const signal = AbortSignal.any([
-      this.cleanupSignal,
-      AbortSignal.timeout(10000),
+    const deadline = AbortSignal.any([
+      this.exportSignal,
+      ...(signal ? [signal] : []),
     ]);
     return (this.finishing = (async () => {
-      signal.throwIfAborted();
+      deadline.throwIfAborted();
       let abort: () => void = () => undefined;
       try {
         await new Promise<void>((resolve, reject) => {
           abort = () =>
             reject(new DaytonaError("Windows recording finalization"));
-          signal.addEventListener("abort", abort, { once: true });
+          deadline.addEventListener("abort", abort, { once: true });
           pending.then(resolve, reject);
         });
       } finally {
-        signal.removeEventListener("abort", abort);
+        deadline.removeEventListener("abort", abort);
       }
       if (!this.id) return;
       let recording = await this.api.request(
         this.base,
         "computeruse/recordings/stop",
-        signal,
+        deadline,
         "Windows recording stop",
         { id: this.id },
         "POST",
@@ -86,11 +102,11 @@ export class DaytonaRecording {
           )
         )
           throw new DaytonaError("Windows recording completion");
-        await delay(100, undefined, { signal });
+        await delay(100, undefined, { signal: deadline });
         recording = await this.api.request(
           this.base,
           "computeruse/recordings/" + encodeURIComponent(this.id),
-          signal,
+          deadline,
           "Windows recording completion",
         );
       }
@@ -99,15 +115,11 @@ export class DaytonaRecording {
         (recording.sizeBytes !== undefined &&
           (typeof recording.sizeBytes !== "number" ||
             !Number.isSafeInteger(recording.sizeBytes) ||
-            recording.sizeBytes < 1 ||
-            recording.sizeBytes > 100 * 1024 * 1024))
+            recording.sizeBytes < 16))
       )
         throw new DaytonaError("Windows recording export");
-      this.video = await this.api.download(
-        this.base,
-        "computeruse/recordings/" + encodeURIComponent(this.id) + "/download",
-        signal,
-      );
+      this.size = recording.sizeBytes as number | undefined;
+      this.stopped = true;
     })());
   }
 }

@@ -26,13 +26,13 @@ export interface ComputerScreenshot {
 export interface ComputerRecording {
   browserId: string;
   replayId: string;
-  download(): Promise<Uint8Array<ArrayBuffer>>;
+  download(signal: AbortSignal): Promise<ReadableStream<Uint8Array>>;
 }
 
 export interface ComputerSession {
   readonly liveViewUrl?: string;
   startRecording(): Promise<ComputerRecording>;
-  stopRecording(): Promise<void>;
+  stopRecording(signal?: AbortSignal): Promise<void>;
   screenshot(): Promise<ComputerScreenshot>;
   navigate(url: string): Promise<void>;
   click(x: number, y: number): Promise<void>;
@@ -41,7 +41,7 @@ export interface ComputerSession {
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
   scrollPage(deltaX: number, deltaY: number): Promise<void>;
   scrollWheel?(deltaX: number, deltaY: number): Promise<void>;
-  close(): Promise<void>;
+  close(signal?: AbortSignal): Promise<void>;
 }
 
 export interface ComputerProvider {
