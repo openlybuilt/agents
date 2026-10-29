@@ -18,13 +18,13 @@ export class DaytonaRecording {
   ) {}
 
   get cleanupSignal(): AbortSignal {
-    return (this.cleanup ??= AbortSignal.timeout(20000));
+    return (this.cleanup ??= AbortSignal.timeout(50000));
   }
 
   private get exportSignal(): AbortSignal {
     return (this.exporting ??= AbortSignal.any([
       this.cleanupSignal,
-      AbortSignal.timeout(10000),
+      AbortSignal.timeout(30000),
     ]));
   }
 
