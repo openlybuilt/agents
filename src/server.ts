@@ -93,6 +93,17 @@ const server = createServer((request, response) => {
         throw error;
       }
     }
+    const recordingMatch = /^\/runs\/([0-9a-f-]{36})\/recording\/stop$/i.exec(
+      request.url ?? "",
+    );
+    if (recordingMatch && request.method === "POST") {
+      const record = await runs.disableRecording(
+        recordingMatch[1].toLowerCase(),
+      );
+      return record
+        ? send(response, 200, record)
+        : send(response, 404, { error: "Run not found" });
+    }
     const match =
       /^\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(\/cancel)?$/i.exec(
         request.url ?? "",

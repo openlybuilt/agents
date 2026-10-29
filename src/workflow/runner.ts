@@ -35,7 +35,11 @@ export class WorkflowRunner {
       onStep?: (steps: StepResult[]) => Promise<void>;
       onEvent?: EventSink;
       onLiveView?: (url?: string) => Promise<void>;
-      onRecording?: (recording: BrowserRecording) => Promise<void>;
+      shouldRecord?: () => boolean;
+      onRecording?: (
+        recording: BrowserRecording,
+        stop: () => Promise<void>,
+      ) => Promise<void>;
       onRecordingError?: () => void;
     },
   ): Promise<WorkflowResult> {
@@ -55,11 +59,11 @@ export class WorkflowRunner {
         signal,
         timeoutMs: options.timeoutMs,
       });
-      if (options.onRecording) {
+      if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
           const recording = await session.startRecording();
           recordingStarted = true;
-          await options.onRecording(recording);
+          await options.onRecording(recording, () => session!.stopRecording());
         } catch {
           options.onRecordingError?.();
         }
