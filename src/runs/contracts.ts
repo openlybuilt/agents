@@ -9,13 +9,6 @@ export type RunRequest = {
   timeoutMs: number;
   workflow?: ResolvedWorkflow;
 };
-export type RunRecord = RunRequest & {
-  status: string;
-  result: unknown;
-  createdAt: string;
-  updatedAt: string;
-  steps?: unknown;
-};
 export function parseRun(value: unknown): RunRequest {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Expected a JSON object");
