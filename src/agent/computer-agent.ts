@@ -20,6 +20,7 @@ export class ComputerAgent {
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       session?: ComputerSession;
       allowedActions?: ComputerAction["name"][];
+      stopAfterClick?: boolean;
       onEvent?: EventSink;
     } = {},
   ): Promise<AgentResult> {
@@ -85,9 +86,12 @@ export class ComputerAgent {
         });
         signal.throwIfAborted();
         if (decision.type === "complete") {
+          const missingClick = options.stopAfterClick && decision.success;
           result = {
-            status: decision.success ? "completed" : "failed",
-            message: decision.message,
+            status: decision.success && !missingClick ? "completed" : "failed",
+            message: missingClick
+              ? "No click action was completed"
+              : decision.message,
             actions,
           };
           break;
@@ -134,6 +138,14 @@ export class ComputerAgent {
         history.push(action);
         observations.push(decision.observation);
         signal.throwIfAborted();
+        if (options.stopAfterClick && action.name === "click") {
+          result = {
+            status: "completed",
+            message: "Click action completed",
+            actions,
+          };
+          break;
+        }
       }
     } catch (error) {
       const status =

@@ -124,6 +124,7 @@ export class WorkflowRunner {
                   timeoutMs: options.timeoutMs,
                   maxSteps: options.maxSteps,
                   allowedActions: ["click", "scroll"],
+                  stopAfterClick: true,
                   onEvent,
                 },
               );
@@ -156,6 +157,9 @@ export class WorkflowRunner {
                 signal,
                 timeoutMs: options.timeoutMs,
                 maxSteps: options.maxSteps,
+                allowedActions:
+                  step.type === "click" ? ["click", "scroll"] : undefined,
+                stopAfterClick: step.type === "click",
                 onEvent,
               },
             );
