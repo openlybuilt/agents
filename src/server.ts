@@ -29,7 +29,10 @@ const agent = new ComputerAgent(
 const runs = new RunService(
   agent,
   new WorkflowRunner(browser, agent),
-  new BackendClient(process.env.BACKEND_URL ?? "http://127.0.0.1:3000"),
+  new BackendClient(
+    process.env.BACKEND_URL ?? "http://127.0.0.1:3000",
+    process.env.AGENTS_CALLBACK_TOKEN ?? "",
+  ),
 );
 function send(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { "content-type": "application/json" });
