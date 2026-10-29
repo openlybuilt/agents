@@ -42,6 +42,15 @@ export class BackendClient {
       throw new Error("BACKEND_URL must be a loopback HTTP origin");
   }
 
+  async ready(signal: AbortSignal): Promise<void> {
+    const response = await fetch(new URL("/ready", this.base), {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
+      redirect: "error",
+    });
+    await response.body?.cancel();
+    if (response.status !== 200) throw new Error("Backend is not ready");
+  }
+
   async update(id: string, update: RunUpdate): Promise<void> {
     const response = await fetch(
       new URL(`/internal/runs/${encodeURIComponent(id)}/update`, this.base),
