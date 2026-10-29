@@ -246,12 +246,14 @@ class DaytonaSession implements ComputerSession {
   screenshot(): Promise<ComputerScreenshot> {
     return this.run(() => this.capture());
   }
-  private async input(text: string): Promise<void> {
+  private async input(text: string, signal = this.signal): Promise<void> {
     const characters = Array.from(text.replace(/\r\n?/g, "\n"));
     for (let offset = 0; offset < characters.length; offset += 1000)
-      await this.native("keyboard/type", {
-        text: characters.slice(offset, offset + 1000).join(""),
-      });
+      await this.native(
+        "keyboard/type",
+        { text: characters.slice(offset, offset + 1000).join("") },
+        signal,
+      );
   }
   type(text: string): Promise<void> {
     if (typeof text !== "string" || text.length > 10000)
@@ -300,12 +302,42 @@ class DaytonaSession implements ComputerSession {
     if (!["http:", "https:"].includes(url.protocol))
       throw new Error("Navigation requires an HTTP or HTTPS URL");
     return this.run(async () => {
-      await this.native("keyboard/hotkey", { keys: "win+r" });
+      const signal = AbortSignal.any([this.signal, AbortSignal.timeout(10000)]);
+      await this.native("keyboard/hotkey", { keys: "win+r" }, signal);
+      await this.waitForRunDialog(true, signal);
+      await this.native("keyboard/hotkey", { keys: "ctrl+a" }, signal);
       await this.input(
         'msedge --no-first-run --no-default-browser-check "' + url.href + '"',
+        signal,
       );
-      await this.native("keyboard/key", { key: "enter", modifiers: [] });
+      await this.native(
+        "keyboard/key",
+        { key: "enter", modifiers: [] },
+        signal,
+      );
+      await this.waitForRunDialog(false, signal);
     });
+  }
+  private async waitForRunDialog(visible: boolean, signal: AbortSignal) {
+    for (;;) {
+      signal.throwIfAborted();
+      const { windows } = await this.native(
+        "display/windows",
+        undefined,
+        signal,
+      );
+      if (!Array.isArray(windows)) throw new DaytonaError("Windows navigation");
+      const found = windows.some((item) => {
+        const window = record(item);
+        return (
+          typeof window.title === "string" &&
+          window.title.replace(/\p{Cf}/gu, "").trim() === "Run" &&
+          (!visible || window.isActive === true)
+        );
+      });
+      if (found === visible) return;
+      await delay(100, undefined, { signal });
+    }
   }
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     return this.run(() => this.wheel(x, y, deltaX, deltaY));
