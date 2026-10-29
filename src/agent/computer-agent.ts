@@ -1,5 +1,6 @@
 import type { BrowserProvider, BrowserSession } from "../browser/session.js";
-import type { ComputerModel } from "../model/model.js";
+import type { ComputerModel, ModelDecision } from "../model/model.js";
+import { emitEvent, type EventSink } from "../runs/events.js";
 import { executeAction, parseAction, type ComputerAction } from "./actions.js";
 import type { ActionEvidence, AgentResult } from "./result.js";
 
@@ -18,6 +19,7 @@ export class ComputerAgent {
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       session?: BrowserSession;
       allowedActions?: ComputerAction["name"][];
+      onEvent?: EventSink;
     } = {},
   ): Promise<AgentResult> {
     const maxSteps = options.maxSteps ?? 20;
@@ -54,15 +56,32 @@ export class ComputerAgent {
         const screenshot = await session.screenshot();
         signal.throwIfAborted();
         stage = "Model decision";
-        const decision = await this.model.decide(
-          {
-            instruction,
-            screenshot,
-            previousActions: history,
-            previousObservations: observations,
-          },
-          signal,
-        );
+        const started = performance.now();
+        let decision: ModelDecision;
+        try {
+          decision = await this.model.decide(
+            {
+              instruction,
+              screenshot,
+              previousActions: history,
+              previousObservations: observations,
+            },
+            signal,
+          );
+        } catch (error) {
+          emitEvent(options.onEvent, {
+            kind: "model",
+            status: signal.aborted ? "cancelled" : "failed",
+            durationMs: Math.round(performance.now() - started),
+          });
+          throw error;
+        }
+        emitEvent(options.onEvent, {
+          kind: "model",
+          status: "completed",
+          durationMs: Math.round(performance.now() - started),
+          ...(decision.usage ? { usage: decision.usage } : {}),
+        });
         signal.throwIfAborted();
         if (decision.type === "complete") {
           result = {
@@ -92,7 +111,24 @@ export class ComputerAgent {
         actions.push(evidence);
         stage = "Browser action";
         actionName = action.name;
-        await executeAction(session, action);
+        const actionStarted = performance.now();
+        try {
+          await executeAction(session, action);
+        } catch (error) {
+          emitEvent(options.onEvent, {
+            kind: "action",
+            action: action.name,
+            status: signal.aborted ? "cancelled" : "failed",
+            durationMs: Math.round(performance.now() - actionStarted),
+          });
+          throw error;
+        }
+        emitEvent(options.onEvent, {
+          kind: "action",
+          action: action.name,
+          status: "completed",
+          durationMs: Math.round(performance.now() - actionStarted),
+        });
         evidence.status = "completed";
         history.push(action);
         observations.push(decision.observation);

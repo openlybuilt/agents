@@ -1,5 +1,6 @@
 import type { AgentResult } from "../agent/result.js";
 import type { StepResult, WorkflowResult } from "../workflow/runner.js";
+import type { RunEvent } from "./events.js";
 
 export type RunUpdate = {
   status:
@@ -11,10 +12,11 @@ export type RunUpdate = {
     | "cancelled"
     | "interrupted";
   steps?: StepResult[];
-  result?:
+  result?: (
     | AgentResult
     | WorkflowResult
-    | { status: "interrupted"; message: string };
+    | { status: "interrupted"; message: string }
+  ) & { logsPartial?: boolean };
   liveViewUrl?: string | null;
 };
 
@@ -46,6 +48,25 @@ export class BackendClient {
     );
     await response.body?.cancel();
     if (!response.ok) throw new Error("Backend execution update failed");
+  }
+
+  async appendEvents(
+    id: string,
+    events: readonly RunEvent[],
+    signal: AbortSignal,
+  ): Promise<void> {
+    const response = await fetch(
+      new URL(`/internal/runs/${encodeURIComponent(id)}/events`, this.base),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ events }),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]),
+        redirect: "error",
+      },
+    );
+    await response.body?.cancel();
+    if (!response.ok) throw new Error("Backend log delivery failed");
   }
 
   async recordingStatus(

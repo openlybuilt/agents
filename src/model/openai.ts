@@ -119,6 +119,12 @@ export class OpenAIComputerModel implements ComputerModel {
       },
       { signal },
     );
+    const usage = response.usage
+      ? {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        }
+      : undefined;
     if (response.status !== "completed")
       throw new Error("Model response did not complete");
     const calls = response.output.filter(
@@ -147,6 +153,7 @@ export class OpenAIComputerModel implements ComputerModel {
           throw new Error("Invalid finish result");
         return {
           type: "complete",
+          usage,
           success: result.success,
           message: result.message,
         };
@@ -158,12 +165,18 @@ export class OpenAIComputerModel implements ComputerModel {
         throw new Error("Invalid observation");
       return {
         type: "action",
+        usage,
         action: parseAction(calls[0].name, actionArgs),
         observation,
       };
     }
     if (!response.output_text.trim())
       throw new Error("Model returned no result");
-    return { type: "complete", success: false, message: response.output_text };
+    return {
+      type: "complete",
+      success: false,
+      message: response.output_text,
+      usage,
+    };
   }
 }
