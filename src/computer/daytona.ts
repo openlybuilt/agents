@@ -249,10 +249,10 @@ class DaytonaSession implements ComputerSession {
   }
   private async input(text: string, signal = this.signal): Promise<void> {
     const characters = Array.from(text.replace(/\r\n?/g, "\n"));
-    for (let offset = 0; offset < characters.length; offset += 1000)
+    for (let offset = 0; offset < characters.length; offset += 250)
       await this.native(
         "keyboard/type",
-        { text: characters.slice(offset, offset + 1000).join("") },
+        { text: characters.slice(offset, offset + 250).join(""), delay: 2 },
         signal,
       );
   }
