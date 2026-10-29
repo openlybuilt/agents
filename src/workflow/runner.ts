@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import type { BrowserProvider, BrowserSession } from "../browser/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
@@ -41,7 +42,10 @@ export class WorkflowRunner {
     };
     try {
       signal.throwIfAborted();
-      session = await this.browser.open({ signal });
+      session = await this.browser.open({
+        signal,
+        timeoutMs: options.timeoutMs,
+      });
       await options.onLiveView?.(session.liveViewUrl);
       await options.onStage?.("running");
       for (let i = 0; i < workflow.steps.length; i++) {
@@ -57,8 +61,36 @@ export class WorkflowRunner {
         signal.throwIfAborted();
         try {
           if (step.type === "navigate") await session.navigate(step.url);
-          else if (step.type === "type") await session.type(step.text);
-          else if (step.type === "press_keys")
+          else if (step.type === "wait")
+            await delay(step.seconds * 1000, undefined, { signal });
+          else if (step.type === "type") {
+            if (step.target) {
+              const focus = await this.agent.run(
+                `Locate the text input described here: ${JSON.stringify(step.target)}${step.region ? `, located around ${JSON.stringify(step.region)}` : ""}. Click the input to focus it, then finish. Do not type any text or take any other action besides scrolling and clicking.`,
+                {
+                  session,
+                  signal,
+                  timeoutMs: options.timeoutMs,
+                  maxSteps: options.maxSteps,
+                  allowedActions: ["click", "scroll"],
+                },
+              );
+              const last = focus.actions.at(-1);
+              if (
+                focus.status !== "completed" ||
+                last?.name !== "click" ||
+                last.status !== "completed"
+              ) {
+                evidence.message =
+                  focus.status === "completed"
+                    ? "Could not confirm the field was clicked"
+                    : focus.message;
+                throw new Error("Could not focus the text field");
+              }
+            }
+            signal.throwIfAborted();
+            await session.type(step.text);
+          } else if (step.type === "press_keys")
             await session.pressKeys(step.keys);
           else if (step.type === "click" && "x" in step)
             await session.click(step.x, step.y);

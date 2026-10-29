@@ -15,5 +15,8 @@ export interface BrowserSession {
 }
 
 export interface BrowserProvider {
-  open(options?: { signal?: AbortSignal }): Promise<BrowserSession>;
+  open(options?: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  }): Promise<BrowserSession>;
 }

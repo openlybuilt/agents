@@ -131,12 +131,19 @@ export class OnKernelProvider implements BrowserProvider {
     this.client = new Kernel({ apiKey, maxRetries: 0 });
   }
 
-  async open(options: { signal?: AbortSignal } = {}): Promise<BrowserSession> {
+  async open(
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ): Promise<BrowserSession> {
     options.signal?.throwIfAborted();
+    if (
+      options.timeoutMs !== undefined &&
+      (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)
+    )
+      throw new RangeError("Invalid browser session time budget");
     // Do not abort an in-flight create: its eventual ID is needed for cleanup.
     const browser = await this.client.browsers.create({
       headless: false,
-      timeout_seconds: 60,
+      timeout_seconds: Math.ceil((options.timeoutMs ?? 0) / 1000) + 60,
     });
     const session = new OnKernelSession(
       this.client,
