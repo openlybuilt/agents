@@ -20,6 +20,12 @@ export class ComputerProviders implements ComputerProvider {
     >,
   ) {}
 
+  executionTargets(): ExecutionTarget[] {
+    return (["browser", "windows"] as const).filter(
+      (target) => this.providers[target] !== undefined,
+    );
+  }
+
   async open(options: ComputerOpenOptions = {}): Promise<ComputerSession> {
     const target =
       options.executionTarget === undefined
