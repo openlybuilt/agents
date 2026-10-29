@@ -6,6 +6,7 @@ import {
 } from "node:http";
 import { ComputerAgent } from "./agent/computer-agent.js";
 import { OnKernelProvider } from "./computer/onkernel.js";
+import { DaytonaProvider } from "./computer/daytona.js";
 import { ComputerProviders } from "./computer/providers.js";
 import { OpenAIComputerModel } from "./model/openai.js";
 import { parseRun } from "./runs/contracts.js";
@@ -19,8 +20,15 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
 const apiToken = process.env.AGENTS_API_TOKEN ?? "";
 if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
   throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
+const browserKey = process.env.ONKERNEL_API_KEY?.trim();
+const windowsKey = process.env.DAYTONA_API_KEY?.trim();
+if (!browserKey && !windowsKey)
+  throw new Error("Configure an OnKernel or Daytona provider API key");
 const computer = new ComputerProviders({
-  browser: new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? ""),
+  ...(browserKey ? { browser: new OnKernelProvider(browserKey) } : {}),
+  ...(windowsKey
+    ? { windows: new DaytonaProvider(windowsKey, process.env.DAYTONA_API_URL) }
+    : {}),
 });
 const agent = new ComputerAgent(
   computer,

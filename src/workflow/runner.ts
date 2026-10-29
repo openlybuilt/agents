@@ -1,9 +1,10 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
-import type {
-  ComputerProvider,
-  ComputerRecording,
-  ComputerSession,
+import {
+  ComputerSessionCleanupError,
+  type ComputerProvider,
+  type ComputerRecording,
+  type ComputerSession,
 } from "../computer/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
@@ -191,6 +192,8 @@ export class WorkflowRunner {
               : "Workflow step or computer operation failed",
         steps,
       };
+      if (error instanceof ComputerSessionCleanupError)
+        result.cleanupError = error.message;
     } finally {
       if (session) {
         try {

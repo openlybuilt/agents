@@ -1,5 +1,11 @@
 export type ExecutionTarget = "browser" | "windows";
 
+export class ComputerSessionCleanupError extends Error {
+  constructor() {
+    super("Computer session cleanup could not be confirmed");
+  }
+}
+
 export type ComputerOpenOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
