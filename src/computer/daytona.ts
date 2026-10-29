@@ -31,6 +31,7 @@ class DaytonaSession implements ComputerSession {
   private closePromise?: Promise<void>;
   private width = 0;
   private height = 0;
+  private pointer?: { x: number; y: number };
 
   constructor(
     private readonly transport: DaytonaApi,
@@ -261,6 +262,7 @@ class DaytonaSession implements ComputerSession {
     this.point(x, y);
     return this.run(async () => {
       await this.native("mouse/click", { x, y, button: "left", double: false });
+      this.pointer = { x, y };
     });
   }
   pressKeys(keys: string[]): Promise<void> {
@@ -306,6 +308,23 @@ class DaytonaSession implements ComputerSession {
     });
   }
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+    return this.run(() => this.wheel(x, y, deltaX, deltaY));
+  }
+  scrollWheel(deltaX: number, deltaY: number): Promise<void> {
+    return this.run(() => {
+      const { x, y } = this.pointer ?? {
+        x: Math.floor(this.width / 2),
+        y: Math.floor(this.height / 2),
+      };
+      return this.wheel(x, y, deltaX, deltaY);
+    });
+  }
+  private async wheel(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+  ): Promise<void> {
     this.point(x, y);
     if (
       ![deltaX, deltaY].every(
@@ -313,25 +332,24 @@ class DaytonaSession implements ComputerSession {
       )
     )
       throw new RangeError("Invalid wheel amount");
-    return this.run(async () => {
-      for (const [amount, negative, positive] of [
-        [deltaX, "left", "right"],
-        [deltaY, "up", "down"],
-      ] as const) {
-        if (
-          amount &&
-          (
-            await this.native("mouse/scroll", {
-              x,
-              y,
-              direction: amount < 0 ? negative : positive,
-              amount: Math.abs(amount),
-            })
-          ).success !== true
-        )
-          throw new DaytonaError("Windows scrolling");
-      }
-    });
+    for (const [amount, negative, positive] of [
+      [deltaX, "left", "right"],
+      [deltaY, "up", "down"],
+    ] as const) {
+      if (
+        amount &&
+        (
+          await this.native("mouse/scroll", {
+            x,
+            y,
+            direction: amount < 0 ? negative : positive,
+            amount: Math.abs(amount),
+          })
+        ).success !== true
+      )
+        throw new DaytonaError("Windows scrolling");
+    }
+    if (deltaX || deltaY) this.pointer = { x, y };
   }
   scrollPage(_deltaX: number, _deltaY: number): Promise<void> {
     return Promise.reject(

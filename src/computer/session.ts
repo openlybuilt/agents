@@ -34,6 +34,7 @@ export interface ComputerSession {
   pressKeys(keys: string[]): Promise<void>;
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
   scrollPage(deltaX: number, deltaY: number): Promise<void>;
+  scrollWheel?(deltaX: number, deltaY: number): Promise<void>;
   close(): Promise<void>;
 }
 
