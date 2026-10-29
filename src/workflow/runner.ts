@@ -1,9 +1,9 @@
 import { setTimeout as delay } from "node:timers/promises";
 import type {
-  BrowserProvider,
-  BrowserRecording,
-  BrowserSession,
-} from "../browser/session.js";
+  ComputerProvider,
+  ComputerRecording,
+  ComputerSession,
+} from "../computer/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
@@ -22,7 +22,7 @@ export type WorkflowResult = {
 };
 export class WorkflowRunner {
   constructor(
-    private readonly browser: BrowserProvider,
+    private readonly computer: ComputerProvider,
     private readonly agent: ComputerAgent,
   ) {}
   async run(
@@ -37,7 +37,7 @@ export class WorkflowRunner {
       onLiveView?: (url?: string) => Promise<void>;
       shouldRecord?: () => boolean;
       onRecording?: (
-        recording: BrowserRecording,
+        recording: ComputerRecording,
         stop: () => Promise<void>,
       ) => Promise<void>;
       onRecordingError?: () => void;
@@ -46,7 +46,7 @@ export class WorkflowRunner {
     const timeout = AbortSignal.timeout(options.timeoutMs);
     const signal = AbortSignal.any([options.signal, timeout]);
     const steps: StepResult[] = [];
-    let session: BrowserSession | undefined;
+    let session: ComputerSession | undefined;
     let recordingStarted = false;
     let result: WorkflowResult = {
       status: "completed",
@@ -55,7 +55,7 @@ export class WorkflowRunner {
     };
     try {
       signal.throwIfAborted();
-      session = await this.browser.open({
+      session = await this.computer.open({
         signal,
         timeoutMs: options.timeoutMs,
       });
@@ -184,7 +184,7 @@ export class WorkflowRunner {
           ? "Workflow cancelled"
           : timeout.aborted
             ? "Workflow timed out"
-            : "Workflow step or browser operation failed",
+            : "Workflow step or computer operation failed",
         steps,
       };
     } finally {
@@ -212,7 +212,7 @@ export class WorkflowRunner {
           result = {
             ...result,
             status: "failed",
-            cleanupError: "Browser session cleanup failed",
+            cleanupError: "Computer session cleanup failed",
           };
         }
       }

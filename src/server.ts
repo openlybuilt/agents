@@ -5,7 +5,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { ComputerAgent } from "./agent/computer-agent.js";
-import { OnKernelProvider } from "./browser/onkernel.js";
+import { OnKernelProvider } from "./computer/onkernel.js";
 import { OpenAIComputerModel } from "./model/openai.js";
 import { parseRun } from "./runs/contracts.js";
 import { RunService } from "./runs/service.js";
@@ -18,9 +18,9 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
 const apiToken = process.env.AGENTS_API_TOKEN ?? "";
 if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
   throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
-const browser = new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? "");
+const computer = new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? "");
 const agent = new ComputerAgent(
-  browser,
+  computer,
   new OpenAIComputerModel(
     process.env.OPENAI_API_KEY ?? "",
     process.env.OPENAI_MODEL ?? "",
@@ -28,7 +28,7 @@ const agent = new ComputerAgent(
 );
 const runs = new RunService(
   agent,
-  new WorkflowRunner(browser, agent),
+  new WorkflowRunner(computer, agent),
   new BackendClient(
     process.env.BACKEND_URL ?? "http://127.0.0.1:3000",
     process.env.AGENTS_CALLBACK_TOKEN ?? "",

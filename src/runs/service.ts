@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ComputerAgent } from "../agent/computer-agent.js";
-import type { BrowserRecording } from "../browser/session.js";
+import type { ComputerRecording } from "../computer/session.js";
 import type { WorkflowRunner } from "../workflow/runner.js";
 import { BackendClient, type RunUpdate } from "./backend-client.js";
 import type { RunRequest } from "./contracts.js";
@@ -70,7 +70,7 @@ export class RunService {
       }
     };
     let result: NonNullable<RunUpdate["result"]>;
-    let recording: BrowserRecording | undefined;
+    let recording: ComputerRecording | undefined;
     let recordingFailed = false;
     try {
       await report({ status: "provisioning" });
@@ -95,7 +95,7 @@ export class RunService {
               ? {
                   shouldRecord: () => !run.recordingDisabled,
                   onRecording: async (
-                    capture: BrowserRecording,
+                    capture: ComputerRecording,
                     stop: () => Promise<void>,
                   ) => {
                     run.stopRecording = stop;
@@ -147,7 +147,7 @@ export class RunService {
     ) {
       try {
         if (!recording || recordingFailed)
-          throw new Error("Browser recording was unavailable");
+          throw new Error("Run recording was unavailable");
         const video = await recording.download();
         await this.backend.uploadRecording(request.id, video);
       } catch {

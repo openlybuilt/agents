@@ -1,4 +1,4 @@
-import type { BrowserProvider, BrowserSession } from "../browser/session.js";
+import type { ComputerProvider, ComputerSession } from "../computer/session.js";
 import type { ComputerModel, ModelDecision } from "../model/model.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
 import { executeAction, parseAction, type ComputerAction } from "./actions.js";
@@ -6,7 +6,7 @@ import type { ActionEvidence, AgentResult } from "./result.js";
 
 export class ComputerAgent {
   constructor(
-    private readonly browser: BrowserProvider,
+    private readonly computer: ComputerProvider,
     private readonly model: ComputerModel,
   ) {}
 
@@ -17,7 +17,7 @@ export class ComputerAgent {
       maxSteps?: number;
       timeoutMs?: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
-      session?: BrowserSession;
+      session?: ComputerSession;
       allowedActions?: ComputerAction["name"][];
       onEvent?: EventSink;
     } = {},
@@ -37,8 +37,8 @@ export class ComputerAgent {
     const history: ComputerAction[] = [];
     const observations: string[] = [];
     const actions: ActionEvidence[] = [];
-    let session: BrowserSession | undefined;
-    let stage = "Browser session creation";
+    let session: ComputerSession | undefined;
+    let stage = "Computer session creation";
     let actionName: string | undefined;
     let result: AgentResult = {
       status: "failed",
@@ -48,7 +48,7 @@ export class ComputerAgent {
     try {
       signal.throwIfAborted();
       session =
-        options.session ?? (await this.browser.open({ signal, timeoutMs }));
+        options.session ?? (await this.computer.open({ signal, timeoutMs }));
       if (!options.session) await options.onStage?.("running");
       for (let step = 0; step < maxSteps; step++) {
         signal.throwIfAborted();
@@ -109,7 +109,7 @@ export class ComputerAgent {
           status: "failed",
         };
         actions.push(evidence);
-        stage = "Browser action";
+        stage = "Computer action";
         actionName = action.name;
         const actionStarted = performance.now();
         try {
@@ -148,7 +148,7 @@ export class ComputerAgent {
           ? { status: "failed", message: "Run timed out", actions }
           : {
               status: "failed",
-              message: `${stage}${stage === "Browser action" && actionName ? ` (${actionName})` : ""} failed${status}`,
+              message: `${stage}${stage === "Computer action" && actionName ? ` (${actionName})` : ""} failed${status}`,
               actions,
             };
     } finally {
@@ -168,7 +168,7 @@ export class ComputerAgent {
           result = {
             ...result,
             status: "failed",
-            cleanupError: "Browser session cleanup failed",
+            cleanupError: "Computer session cleanup failed",
           };
         }
       }
