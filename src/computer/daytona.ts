@@ -10,6 +10,7 @@ import {
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ComputerSessionCleanupError,
+  HorizontalScrollUnavailableError,
   type ComputerOpenOptions,
   type ComputerProvider,
   type ComputerRecording,
@@ -364,6 +365,7 @@ class DaytonaSession implements ComputerSession {
       )
     )
       throw new RangeError("Invalid wheel amount");
+    if (deltaX) throw new HorizontalScrollUnavailableError();
     for (const [amount, negative, positive] of [
       [deltaX, "left", "right"],
       [deltaY, "up", "down"],

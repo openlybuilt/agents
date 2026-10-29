@@ -1,5 +1,11 @@
 export type ExecutionTarget = "browser" | "windows";
 
+export class HorizontalScrollUnavailableError extends Error {
+  constructor() {
+    super("Windows horizontal scrolling is unavailable; use up or down");
+  }
+}
+
 export class ComputerSessionCleanupError extends Error {
   constructor() {
     super("Computer session cleanup could not be confirmed");
