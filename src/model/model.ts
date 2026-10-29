@@ -1,9 +1,10 @@
 import type { ComputerAction } from "../agent/actions.js";
 import type { BrowserScreenshot } from "../browser/session.js";
 
-export type ModelDecision =
+export type ModelDecision = (
   | { type: "action"; action: ComputerAction; observation: string }
-  | { type: "complete"; success: boolean; message: string };
+  | { type: "complete"; success: boolean; message: string }
+) & { usage?: { inputTokens: number; outputTokens: number } };
 export type ModelContext = {
   instruction: string;
   screenshot: BrowserScreenshot;
