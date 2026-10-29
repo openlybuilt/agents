@@ -35,8 +35,8 @@ export function parseRun(value: unknown): RunRequest {
     r.instruction.length > 10000
   )
     throw new Error("Invalid instruction");
-  const maxSteps = r.maxSteps ?? 20,
-    timeoutMs = r.timeoutMs ?? 120000;
+  const maxSteps = r.maxSteps,
+    timeoutMs = r.timeoutMs;
   if (
     typeof maxSteps !== "number" ||
     !Number.isInteger(maxSteps) ||

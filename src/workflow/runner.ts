@@ -27,7 +27,7 @@ export class WorkflowRunner {
       maxSteps: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
-      onLiveView?: (url?: string) => void;
+      onLiveView?: (url?: string) => Promise<void>;
     },
   ): Promise<WorkflowResult> {
     const timeout = AbortSignal.timeout(options.timeoutMs);
@@ -42,7 +42,7 @@ export class WorkflowRunner {
     try {
       signal.throwIfAborted();
       session = await this.browser.open({ signal });
-      options.onLiveView?.(session.liveViewUrl);
+      await options.onLiveView?.(session.liveViewUrl);
       await options.onStage?.("running");
       for (let i = 0; i < workflow.steps.length; i++) {
         signal.throwIfAborted();
@@ -54,6 +54,7 @@ export class WorkflowRunner {
         };
         steps.push(evidence);
         await options.onStep?.(steps);
+        signal.throwIfAborted();
         try {
           if (step.type === "navigate") await session.navigate(step.url);
           else if (step.type === "type") await session.type(step.text);
@@ -101,8 +102,8 @@ export class WorkflowRunner {
       };
     } finally {
       if (session) {
-        options.onLiveView?.(undefined);
         try {
+          await options.onLiveView?.(undefined);
           await options.onStage?.("cleaning_up");
         } catch {
           result = {
