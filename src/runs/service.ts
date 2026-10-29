@@ -1,102 +1,115 @@
+import { isDeepStrictEqual } from "node:util";
 import type { ComputerAgent } from "../agent/computer-agent.js";
+import type { WorkflowRunner } from "../workflow/runner.js";
+import { BackendClient, type RunUpdate } from "./backend-client.js";
 import type { RunRequest } from "./contracts.js";
-import { RunStore } from "./store.js";
+
+type ActiveRun = {
+  request: RunRequest;
+  status: RunUpdate["status"] | "cancelling";
+  controller: AbortController;
+  task: Promise<void>;
+};
 
 export class RunService {
-  private readonly active = new Map<
-    string,
-    { controller: AbortController; task: Promise<void> }
-  >();
+  private readonly active = new Map<string, ActiveRun>();
   private stopping = false;
-  private readonly creating = new Map<string, Promise<unknown>>();
+
   constructor(
-    private readonly store: RunStore,
     private readonly agent: ComputerAgent,
+    private readonly workflows: WorkflowRunner,
+    private readonly backend: BackendClient,
   ) {}
-  async create(request: RunRequest) {
+
+  get(id: string) {
+    const run = this.active.get(id);
+    return run ? { id, status: run.status } : undefined;
+  }
+
+  create(request: RunRequest) {
     if (this.stopping) throw new Error("Service is stopping");
-    const prior = this.creating.get(request.id);
-    const operation = (async () => {
-      if (prior) await prior.catch(() => undefined);
-      if (this.stopping) throw new Error("Service is stopping");
-      const created = await this.store.create(request);
-      if (this.stopping) {
-        if (created.created) await this.store.status(request.id, "interrupted");
-        throw new Error("Service is stopping");
-      }
-      if (
-        !created.created &&
-        created.record.status === "provisioning" &&
-        !this.active.has(request.id)
-      ) {
-        // A previous commit may have succeeded even though its response was lost.
-        await this.store.status(request.id, "interrupted");
-        return (await this.store.get(request.id))!;
-      }
-      if (created.created) {
-        const controller = new AbortController();
-        const entry = { controller, task: Promise.resolve() };
-        this.active.set(request.id, entry);
-        entry.task = (async () => {
-          const current = await this.retry(() => this.store.get(request.id));
-          if (current?.status === "cancelling") controller.abort();
-          await this.execute(request, controller);
-        })()
-          .catch(() => {
-            console.error("Failed to persist run outcome");
-          })
-          .finally(() => this.active.delete(request.id));
-      }
-      return created.record;
-    })();
-    this.creating.set(request.id, operation);
-    try {
-      return await operation;
-    } finally {
-      if (this.creating.get(request.id) === operation)
-        this.creating.delete(request.id);
+    const existing = this.active.get(request.id);
+    if (existing) {
+      if (!isDeepStrictEqual(existing.request, request))
+        throw new Error("Run ID already has different inputs");
+      return this.get(request.id)!;
     }
+    const run: ActiveRun = {
+      request,
+      status: "provisioning",
+      controller: new AbortController(),
+      task: Promise.resolve(),
+    };
+    this.active.set(request.id, run);
+    run.task = this.execute(run)
+      .catch(() => console.error("Execution result could not reach backend"))
+      .finally(() => this.active.delete(request.id));
+    return this.get(request.id)!;
   }
-  private async retry<T>(operation: () => Promise<T>): Promise<T> {
-    for (;;) {
+
+  private async execute(run: ActiveRun): Promise<void> {
+    const { request, controller } = run;
+    let reportingFailed = false;
+    const report = async (update: RunUpdate) => {
+      if (reportingFailed) throw new Error("Backend reporting unavailable");
       try {
-        return await operation();
+        await this.backend.update(request.id, update);
+        if (run.status !== "cancelling") run.status = update.status;
       } catch (error) {
-        if (this.stopping) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        reportingFailed = true;
+        controller.abort();
+        throw error;
       }
+    };
+    let result: NonNullable<RunUpdate["result"]>;
+    try {
+      await report({ status: "provisioning" });
+      const options = {
+        signal: controller.signal,
+        maxSteps: request.maxSteps,
+        timeoutMs: request.timeoutMs,
+        onStage: (status: "running" | "cleaning_up") => report({ status }),
+      };
+      result = request.workflow
+        ? await this.workflows.run(request.workflow, {
+            ...options,
+            onStep: (steps) => report({ status: "running", steps }),
+            onLiveView: (url) =>
+              report({
+                status:
+                  run.status === "cancelling" ? "cleaning_up" : run.status,
+                liveViewUrl: url ?? null,
+              }),
+          })
+        : await this.agent.run(request.instruction, options);
+    } catch {
+      result = {
+        status: "interrupted",
+        message: "Execution stopped before a result was available",
+      };
     }
-  }
-  private async execute(
-    request: RunRequest,
-    controller: AbortController,
-  ): Promise<void> {
-    const result = await this.agent.run(request.instruction, {
-      signal: controller.signal,
-      maxSteps: request.maxSteps,
-      timeoutMs: request.timeoutMs,
-      onStage: (stage) => this.store.status(request.id, stage),
+    if (reportingFailed)
+      result = {
+        status: "interrupted",
+        message: "Execution stopped because progress could not be saved",
+      };
+    await this.backend.update(request.id, {
+      status: result.status,
+      result,
+      liveViewUrl: null,
     });
-    await this.retry(() =>
-      this.store.status(request.id, result.status, result),
-    );
   }
-  async cancel(id: string) {
-    const record = await this.store.get(id);
-    if (!record) return undefined;
-    if (
-      ["provisioning", "running", "cleaning_up", "cancelling"].includes(
-        record.status,
-      )
-    ) {
-      await this.store.status(id, "cancelling");
-      this.active.get(id)?.controller.abort();
-    }
-    return this.store.get(id);
+
+  cancel(id: string) {
+    const run = this.active.get(id);
+    if (!run) return undefined;
+    run.status = "cancelling";
+    run.controller.abort();
+    return this.get(id);
   }
+
   async stop(): Promise<void> {
     this.stopping = true;
-    await Promise.allSettled([...this.creating.values()]);
     for (const run of this.active.values()) run.controller.abort();
     await Promise.allSettled([...this.active.values()].map((run) => run.task));
   }

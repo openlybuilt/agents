@@ -20,6 +20,7 @@ class OnKernelSession implements BrowserSession {
   constructor(
     private readonly client: Kernel,
     private readonly id: string,
+    readonly liveViewUrl?: string,
   ) {}
 
   private run<T>(action: () => Promise<T>): Promise<T> {
@@ -53,15 +54,11 @@ class OnKernelSession implements BrowserSession {
       throw new Error("Navigation requires an HTTP or HTTPS URL");
     }
     return this.run(async () => {
-      await this.client.browsers.computer.pressKey(this.id, {
-        keys: ["Ctrl+l"],
+      const result = await this.client.browsers.playwright.execute(this.id, {
+        code: `await page.goto(${JSON.stringify(parsed.href)}, { waitUntil: "domcontentloaded", timeout: 30000 });`,
+        timeout_sec: 35,
       });
-      await this.client.browsers.computer.typeText(this.id, {
-        text: parsed.href,
-      });
-      await this.client.browsers.computer.pressKey(this.id, {
-        keys: ["Return"],
-      });
+      if (!result.success) throw new Error("Browser navigation failed");
     });
   }
 
@@ -104,6 +101,22 @@ class OnKernelSession implements BrowserSession {
     );
   }
 
+  scrollPage(deltaX: number, deltaY: number): Promise<void> {
+    if (
+      ![deltaX, deltaY].every(
+        (amount) => Number.isInteger(amount) && Math.abs(amount) <= 100000,
+      )
+    )
+      throw new RangeError("Invalid page scroll amount");
+    return this.run(async () => {
+      const result = await this.client.browsers.playwright.execute(this.id, {
+        code: `await page.evaluate(() => window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: "instant" }));`,
+        timeout_sec: 10,
+      });
+      if (!result.success) throw new Error("Page scroll failed");
+    });
+  }
+
   close(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (this.closePromise) return this.closePromise;
@@ -134,14 +147,25 @@ export class OnKernelProvider implements BrowserProvider {
     this.client = new Kernel({ apiKey, maxRetries: 0 });
   }
 
-  async open(options: { signal?: AbortSignal } = {}): Promise<BrowserSession> {
+  async open(
+    options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  ): Promise<BrowserSession> {
     options.signal?.throwIfAborted();
+    if (
+      options.timeoutMs !== undefined &&
+      (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)
+    )
+      throw new RangeError("Invalid browser session time budget");
     // Do not abort an in-flight create: its eventual ID is needed for cleanup.
     const browser = await this.client.browsers.create({
       headless: false,
-      timeout_seconds: 60,
+      timeout_seconds: Math.ceil((options.timeoutMs ?? 0) / 1000) + 60,
     });
-    const session = new OnKernelSession(this.client, browser.session_id);
+    const session = new OnKernelSession(
+      this.client,
+      browser.session_id,
+      browser.browser_live_view_url,
+    );
     if (options.signal?.aborted) {
       try {
         await session.close();

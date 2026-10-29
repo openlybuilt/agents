@@ -4,15 +4,20 @@ export interface BrowserScreenshot {
 }
 
 export interface BrowserSession {
+  readonly liveViewUrl?: string;
   screenshot(): Promise<BrowserScreenshot>;
   navigate(url: string): Promise<void>;
   click(x: number, y: number): Promise<void>;
   type(text: string): Promise<void>;
   pressKeys(keys: string[]): Promise<void>;
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
+  scrollPage(deltaX: number, deltaY: number): Promise<void>;
   close(): Promise<void>;
 }
 
 export interface BrowserProvider {
-  open(options?: { signal?: AbortSignal }): Promise<BrowserSession>;
+  open(options?: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  }): Promise<BrowserSession>;
 }

@@ -1,14 +1,13 @@
+import {
+  parseWorkflow,
+  type ResolvedWorkflow,
+} from "../workflow/definition.js";
 export type RunRequest = {
   id: string;
   instruction: string;
   maxSteps: number;
   timeoutMs: number;
-};
-export type RunRecord = RunRequest & {
-  status: string;
-  result: unknown;
-  createdAt: string;
-  updatedAt: string;
+  workflow?: ResolvedWorkflow;
 };
 export function parseRun(value: unknown): RunRequest {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -16,7 +15,10 @@ export function parseRun(value: unknown): RunRequest {
   const r = value as Record<string, unknown>;
   if (
     Object.keys(r).some(
-      (key) => !["id", "instruction", "maxSteps", "timeoutMs"].includes(key),
+      (key) =>
+        !["id", "instruction", "maxSteps", "timeoutMs", "workflow"].includes(
+          key,
+        ),
     )
   )
     throw new Error("Unknown run field");
@@ -33,8 +35,8 @@ export function parseRun(value: unknown): RunRequest {
     r.instruction.length > 10000
   )
     throw new Error("Invalid instruction");
-  const maxSteps = r.maxSteps ?? 20,
-    timeoutMs = r.timeoutMs ?? 120000;
+  const maxSteps = r.maxSteps,
+    timeoutMs = r.timeoutMs;
   if (
     typeof maxSteps !== "number" ||
     !Number.isInteger(maxSteps) ||
@@ -54,5 +56,8 @@ export function parseRun(value: unknown): RunRequest {
     instruction: r.instruction,
     maxSteps,
     timeoutMs,
+    ...(r.workflow === undefined
+      ? {}
+      : { workflow: parseWorkflow(r.workflow) }),
   };
 }

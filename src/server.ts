@@ -9,26 +9,28 @@ import { OnKernelProvider } from "./browser/onkernel.js";
 import { OpenAIComputerModel } from "./model/openai.js";
 import { parseRun } from "./runs/contracts.js";
 import { RunService } from "./runs/service.js";
-import { RunStore } from "./runs/store.js";
+import { BackendClient } from "./runs/backend-client.js";
+import { WorkflowRunner } from "./workflow/runner.js";
 
 const rawPort = process.env.PORT ?? "3100";
 if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
   throw new Error("PORT must be an integer between 1 and 65535");
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required");
 const apiToken = process.env.AGENTS_API_TOKEN ?? "";
 if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
   throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
-const store = new RunStore(databaseUrl);
-await store.initialize();
+const browser = new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? "");
 const agent = new ComputerAgent(
-  new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? ""),
+  browser,
   new OpenAIComputerModel(
     process.env.OPENAI_API_KEY ?? "",
     process.env.OPENAI_MODEL ?? "",
   ),
 );
-const runs = new RunService(store, agent);
+const runs = new RunService(
+  agent,
+  new WorkflowRunner(browser, agent),
+  new BackendClient(process.env.BACKEND_URL ?? "http://127.0.0.1:3000"),
+);
 function send(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(value));
@@ -93,7 +95,7 @@ const server = createServer((request, response) => {
         request.url ?? "",
       );
     if (match && request.method === "GET" && !match[2]) {
-      const record = await store.get(match[1].toLowerCase());
+      const record = await runs.get(match[1].toLowerCase());
       return record
         ? send(response, 200, record)
         : send(response, 404, { error: "Run not found" });
@@ -119,9 +121,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
     const closed = new Promise<void>((resolve) =>
       server.close(() => resolve()),
     );
-    void Promise.all([runs.stop(), closed])
-      .then(() => store.close())
-      .catch(() => {
-        process.exitCode = 1;
-      });
+    void Promise.all([runs.stop(), closed]).catch(() => {
+      process.exitCode = 1;
+    });
   });
