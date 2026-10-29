@@ -11,6 +11,7 @@ export interface BrowserSession {
   type(text: string): Promise<void>;
   pressKeys(keys: string[]): Promise<void>;
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
+  scrollPage(deltaX: number, deltaY: number): Promise<void>;
   close(): Promise<void>;
 }
 

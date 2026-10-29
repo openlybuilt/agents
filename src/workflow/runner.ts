@@ -61,7 +61,15 @@ export class WorkflowRunner {
         signal.throwIfAborted();
         try {
           if (step.type === "navigate") await session.navigate(step.url);
-          else if (step.type === "wait")
+          else if (step.type === "scroll") {
+            const amount = ["up", "left"].includes(step.direction)
+              ? -step.pixels
+              : step.pixels;
+            await session.scrollPage(
+              ["left", "right"].includes(step.direction) ? amount : 0,
+              ["up", "down"].includes(step.direction) ? amount : 0,
+            );
+          } else if (step.type === "wait")
             await delay(step.seconds * 1000, undefined, { signal });
           else if (step.type === "type") {
             if (step.target) {

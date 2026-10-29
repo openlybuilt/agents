@@ -101,6 +101,22 @@ class OnKernelSession implements BrowserSession {
     );
   }
 
+  scrollPage(deltaX: number, deltaY: number): Promise<void> {
+    if (
+      ![deltaX, deltaY].every(
+        (amount) => Number.isInteger(amount) && Math.abs(amount) <= 100000,
+      )
+    )
+      throw new RangeError("Invalid page scroll amount");
+    return this.run(async () => {
+      const result = await this.client.browsers.playwright.execute(this.id, {
+        code: `await page.evaluate(() => window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: "instant" }));`,
+        timeout_sec: 10,
+      });
+      if (!result.success) throw new Error("Page scroll failed");
+    });
+  }
+
   close(): Promise<void> {
     if (this.closed) return Promise.resolve();
     if (this.closePromise) return this.closePromise;
