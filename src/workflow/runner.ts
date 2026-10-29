@@ -6,6 +6,7 @@ import type {
 } from "../browser/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
+import { emitEvent, type EventSink } from "../runs/events.js";
 
 export type StepResult = {
   index: number;
@@ -32,6 +33,7 @@ export class WorkflowRunner {
       maxSteps: number;
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
+      onEvent?: EventSink;
       onLiveView?: (url?: string) => Promise<void>;
       onRecording?: (recording: BrowserRecording) => Promise<void>;
       onRecordingError?: () => void;
@@ -67,15 +69,24 @@ export class WorkflowRunner {
       for (let i = 0; i < workflow.steps.length; i++) {
         signal.throwIfAborted();
         const step = workflow.steps[i];
+        const stepStarted = performance.now();
+        const onEvent: EventSink = (event) =>
+          emitEvent(options.onEvent, { ...event, stepIndex: i });
         const evidence: StepResult = {
           index: i,
           type: step.type,
           status: "running",
         };
         steps.push(evidence);
-        await options.onStep?.(steps);
-        signal.throwIfAborted();
+        emitEvent(options.onEvent, {
+          kind: "step",
+          stepIndex: i,
+          stepType: step.type,
+          status: "running",
+        });
         try {
+          await options.onStep?.(steps);
+          signal.throwIfAborted();
           if (step.type === "navigate") await session.navigate(step.url);
           else if (step.type === "scroll") {
             const amount = ["up", "left"].includes(step.direction)
@@ -97,6 +108,7 @@ export class WorkflowRunner {
                   timeoutMs: options.timeoutMs,
                   maxSteps: options.maxSteps,
                   allowedActions: ["click", "scroll"],
+                  onEvent,
                 },
               );
               const last = focus.actions.at(-1);
@@ -128,6 +140,7 @@ export class WorkflowRunner {
                 signal,
                 timeoutMs: options.timeoutMs,
                 maxSteps: options.maxSteps,
+                onEvent,
               },
             );
             evidence.message = agentResult.message;
@@ -138,9 +151,23 @@ export class WorkflowRunner {
           evidence.status = "completed";
         } catch (error) {
           evidence.status = options.signal.aborted ? "cancelled" : "failed";
+          emitEvent(options.onEvent, {
+            kind: "step",
+            stepIndex: i,
+            stepType: step.type,
+            status: evidence.status,
+            durationMs: Math.round(performance.now() - stepStarted),
+          });
           await options.onStep?.(steps);
           throw error;
         }
+        emitEvent(options.onEvent, {
+          kind: "step",
+          stepIndex: i,
+          stepType: step.type,
+          status: "completed",
+          durationMs: Math.round(performance.now() - stepStarted),
+        });
         await options.onStep?.(steps);
       }
     } catch {
