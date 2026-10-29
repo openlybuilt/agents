@@ -1,6 +1,7 @@
 import Kernel, { NotFoundError } from "@onkernel/sdk";
 import type {
   BrowserProvider,
+  BrowserRecording,
   BrowserScreenshot,
   BrowserSession,
 } from "./session.js";
@@ -16,12 +17,84 @@ class OnKernelSession implements BrowserSession {
   private closing = false;
   private closed = false;
   private closePromise?: Promise<void>;
+  private replayId?: string;
+  private replayStopped = false;
 
   constructor(
     private readonly client: Kernel,
     private readonly id: string,
     readonly liveViewUrl?: string,
+    private readonly recordingSeconds = 600,
   ) {}
+
+  startRecording(): Promise<BrowserRecording> {
+    return this.run(async () => {
+      const replay = await this.client.browsers.replays.start(
+        this.id,
+        {
+          record_audio: false,
+          framerate: 10,
+          max_duration_in_seconds: this.recordingSeconds,
+        },
+        { signal: AbortSignal.timeout(15000) },
+      );
+      this.replayId = replay.replay_id;
+      return {
+        browserId: this.id,
+        replayId: replay.replay_id,
+        download: () => this.downloadRecording(),
+      };
+    });
+  }
+
+  stopRecording(): Promise<void> {
+    return this.run(async () => {
+      if (!this.replayId) throw new Error("Recording was not started");
+      if (this.replayStopped) return;
+      await this.client.browsers.replays.stop(
+        this.replayId,
+        { id: this.id },
+        { signal: AbortSignal.timeout(15000) },
+      );
+      this.replayStopped = true;
+    });
+  }
+
+  private async downloadRecording(): Promise<Uint8Array<ArrayBuffer>> {
+    if (!this.replayId || !this.replayStopped)
+      throw new Error("Recording has not finished");
+    const response = await this.client.browsers.replays.download(
+      this.replayId,
+      { id: this.id },
+      { signal: AbortSignal.timeout(60000) },
+    );
+    const limit = 100 * 1024 * 1024;
+    if (
+      !response.ok ||
+      !response.body ||
+      Number(response.headers.get("content-length")) > limit
+    ) {
+      await response.body?.cancel();
+      throw new Error("Recording download failed or exceeds size limit");
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > limit) throw new Error("Recording exceeds size limit");
+        chunks.push(value);
+      }
+      if (!size) throw new Error("Recording is empty");
+      return Buffer.concat(chunks, size);
+    } finally {
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+  }
 
   private run<T>(action: () => Promise<T>): Promise<T> {
     if (this.closing || this.closed) {
@@ -123,7 +196,9 @@ class OnKernelSession implements BrowserSession {
     this.closing = true;
     this.closePromise = this.tail.then(async () => {
       try {
-        await this.client.browsers.deleteByID(this.id);
+        await this.client.browsers.deleteByID(this.id, {
+          signal: AbortSignal.timeout(15000),
+        });
         this.closed = true;
       } catch (error) {
         if (error instanceof NotFoundError) {
@@ -165,6 +240,7 @@ export class OnKernelProvider implements BrowserProvider {
       this.client,
       browser.session_id,
       browser.browser_live_view_url,
+      Math.ceil((options.timeoutMs ?? 600000) / 1000) + 60,
     );
     if (options.signal?.aborted) {
       try {

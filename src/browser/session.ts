@@ -3,8 +3,16 @@ export interface BrowserScreenshot {
   contentType: string;
 }
 
+export interface BrowserRecording {
+  browserId: string;
+  replayId: string;
+  download(): Promise<Uint8Array<ArrayBuffer>>;
+}
+
 export interface BrowserSession {
   readonly liveViewUrl?: string;
+  startRecording(): Promise<BrowserRecording>;
+  stopRecording(): Promise<void>;
   screenshot(): Promise<BrowserScreenshot>;
   navigate(url: string): Promise<void>;
   click(x: number, y: number): Promise<void>;
