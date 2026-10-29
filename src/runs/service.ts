@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ComputerAgent } from "../agent/computer-agent.js";
+import type { BrowserRecording } from "../browser/session.js";
 import type { WorkflowRunner } from "../workflow/runner.js";
 import { BackendClient, type RunUpdate } from "./backend-client.js";
 import type { RunRequest } from "./contracts.js";
@@ -62,8 +63,16 @@ export class RunService {
       }
     };
     let result: NonNullable<RunUpdate["result"]>;
+    let recording: BrowserRecording | undefined;
+    let recordingFailed = false;
     try {
       await report({ status: "provisioning" });
+      if (request.workflow)
+        await this.backend
+          .recordingStatus(request.id, "pending")
+          .catch(() =>
+            console.error("Recording preparation could not reach backend"),
+          );
       const options = {
         signal: controller.signal,
         maxSteps: request.maxSteps,
@@ -74,6 +83,17 @@ export class RunService {
         ? await this.workflows.run(request.workflow, {
             ...options,
             onStep: (steps) => report({ status: "running", steps }),
+            onRecording: async (capture) => {
+              recording = capture;
+              await this.backend.recordingStatus(
+                request.id,
+                "pending",
+                capture,
+              );
+            },
+            onRecordingError: () => {
+              recordingFailed = true;
+            },
             onLiveView: (url) =>
               report({
                 status:
@@ -98,6 +118,20 @@ export class RunService {
       result,
       liveViewUrl: null,
     });
+    if (request.workflow) {
+      try {
+        if (!recording || recordingFailed)
+          throw new Error("Browser recording was unavailable");
+        const video = await recording.download();
+        await this.backend.uploadRecording(request.id, video);
+      } catch {
+        await this.backend
+          .recordingStatus(request.id, "failed")
+          .catch(() =>
+            console.error("Recording failure could not reach backend"),
+          );
+      }
+    }
   }
 
   cancel(id: string) {

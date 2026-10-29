@@ -1,5 +1,9 @@
 import { setTimeout as delay } from "node:timers/promises";
-import type { BrowserProvider, BrowserSession } from "../browser/session.js";
+import type {
+  BrowserProvider,
+  BrowserRecording,
+  BrowserSession,
+} from "../browser/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
 
@@ -29,12 +33,15 @@ export class WorkflowRunner {
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
       onLiveView?: (url?: string) => Promise<void>;
+      onRecording?: (recording: BrowserRecording) => Promise<void>;
+      onRecordingError?: () => void;
     },
   ): Promise<WorkflowResult> {
     const timeout = AbortSignal.timeout(options.timeoutMs);
     const signal = AbortSignal.any([options.signal, timeout]);
     const steps: StepResult[] = [];
     let session: BrowserSession | undefined;
+    let recordingStarted = false;
     let result: WorkflowResult = {
       status: "completed",
       message: "Workflow completed",
@@ -46,6 +53,15 @@ export class WorkflowRunner {
         signal,
         timeoutMs: options.timeoutMs,
       });
+      if (options.onRecording) {
+        try {
+          const recording = await session.startRecording();
+          recordingStarted = true;
+          await options.onRecording(recording);
+        } catch {
+          options.onRecordingError?.();
+        }
+      }
       await options.onLiveView?.(session.liveViewUrl);
       await options.onStage?.("running");
       for (let i = 0; i < workflow.steps.length; i++) {
@@ -151,6 +167,13 @@ export class WorkflowRunner {
             status: "failed",
             message: "Run status update failed",
           };
+        }
+        if (recordingStarted) {
+          try {
+            await session.stopRecording();
+          } catch {
+            options.onRecordingError?.();
+          }
         }
         try {
           await session.close();

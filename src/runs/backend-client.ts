@@ -47,4 +47,44 @@ export class BackendClient {
     await response.body?.cancel();
     if (!response.ok) throw new Error("Backend execution update failed");
   }
+
+  async recordingStatus(
+    id: string,
+    status: "pending" | "failed",
+    reference?: { browserId: string; replayId: string },
+  ): Promise<void> {
+    const response = await fetch(
+      new URL(
+        `/internal/runs/${encodeURIComponent(id)}/recording/status`,
+        this.base,
+      ),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status, ...reference }),
+        signal: AbortSignal.timeout(5000),
+        redirect: "error",
+      },
+    );
+    await response.body?.cancel();
+    if (!response.ok) throw new Error("Backend recording update failed");
+  }
+
+  async uploadRecording(
+    id: string,
+    video: Uint8Array<ArrayBuffer>,
+  ): Promise<void> {
+    const response = await fetch(
+      new URL(`/internal/runs/${encodeURIComponent(id)}/recording`, this.base),
+      {
+        method: "POST",
+        headers: { "content-type": "video/mp4" },
+        body: video,
+        signal: AbortSignal.timeout(30000),
+        redirect: "error",
+      },
+    );
+    await response.body?.cancel();
+    if (!response.ok) throw new Error("Backend recording upload failed");
+  }
 }
