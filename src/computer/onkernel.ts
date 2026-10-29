@@ -1,5 +1,7 @@
 import Kernel, { NotFoundError } from "@onkernel/sdk";
+import { ExecutionTargetUnavailableError } from "./providers.js";
 import type {
+  ComputerOpenOptions,
   ComputerProvider,
   ComputerRecording,
   ComputerScreenshot,
@@ -222,10 +224,10 @@ export class OnKernelProvider implements ComputerProvider {
     this.client = new Kernel({ apiKey, maxRetries: 0 });
   }
 
-  async open(
-    options: { signal?: AbortSignal; timeoutMs?: number } = {},
-  ): Promise<ComputerSession> {
+  async open(options: ComputerOpenOptions = {}): Promise<ComputerSession> {
     options.signal?.throwIfAborted();
+    if (options.executionTarget && options.executionTarget !== "browser")
+      throw new ExecutionTargetUnavailableError(options.executionTarget);
     if (
       options.timeoutMs !== undefined &&
       (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)

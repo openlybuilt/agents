@@ -1,3 +1,11 @@
+export type ExecutionTarget = "browser" | "windows";
+
+export type ComputerOpenOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  executionTarget?: ExecutionTarget;
+};
+
 export interface ComputerScreenshot {
   bytes: Uint8Array;
   contentType: string;
@@ -24,8 +32,5 @@ export interface ComputerSession {
 }
 
 export interface ComputerProvider {
-  open(options?: {
-    signal?: AbortSignal;
-    timeoutMs?: number;
-  }): Promise<ComputerSession>;
+  open(options?: ComputerOpenOptions): Promise<ComputerSession>;
 }

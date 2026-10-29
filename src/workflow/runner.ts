@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import type {
   ComputerProvider,
   ComputerRecording,
@@ -58,6 +59,7 @@ export class WorkflowRunner {
       session = await this.computer.open({
         signal,
         timeoutMs: options.timeoutMs,
+        executionTarget: workflow.executionTarget,
       });
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
@@ -174,7 +176,7 @@ export class WorkflowRunner {
         });
         await options.onStep?.(steps);
       }
-    } catch {
+    } catch (error) {
       const current = steps.at(-1);
       if (current?.status === "running")
         current.status = options.signal.aborted ? "cancelled" : "failed";
@@ -184,7 +186,9 @@ export class WorkflowRunner {
           ? "Workflow cancelled"
           : timeout.aborted
             ? "Workflow timed out"
-            : "Workflow step or computer operation failed",
+            : error instanceof ExecutionTargetUnavailableError
+              ? error.message
+              : "Workflow step or computer operation failed",
         steps,
       };
     } finally {

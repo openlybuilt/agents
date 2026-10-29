@@ -6,6 +6,7 @@ import {
 } from "node:http";
 import { ComputerAgent } from "./agent/computer-agent.js";
 import { OnKernelProvider } from "./computer/onkernel.js";
+import { ComputerProviders } from "./computer/providers.js";
 import { OpenAIComputerModel } from "./model/openai.js";
 import { parseRun } from "./runs/contracts.js";
 import { RunService } from "./runs/service.js";
@@ -18,7 +19,9 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
 const apiToken = process.env.AGENTS_API_TOKEN ?? "";
 if (!/^[A-Za-z0-9_-]{32,256}$/.test(apiToken))
   throw new Error("AGENTS_API_TOKEN must be 32 to 256 URL-safe characters");
-const computer = new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? "");
+const computer = new ComputerProviders({
+  browser: new OnKernelProvider(process.env.ONKERNEL_API_KEY ?? ""),
+});
 const agent = new ComputerAgent(
   computer,
   new OpenAIComputerModel(

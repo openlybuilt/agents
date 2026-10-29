@@ -1,4 +1,5 @@
 import type { ComputerProvider, ComputerSession } from "../computer/session.js";
+import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import type { ComputerModel, ModelDecision } from "../model/model.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
 import { executeAction, parseAction, type ComputerAction } from "./actions.js";
@@ -148,7 +149,10 @@ export class ComputerAgent {
           ? { status: "failed", message: "Run timed out", actions }
           : {
               status: "failed",
-              message: `${stage}${stage === "Computer action" && actionName ? ` (${actionName})` : ""} failed${status}`,
+              message:
+                error instanceof ExecutionTargetUnavailableError
+                  ? error.message
+                  : `${stage}${stage === "Computer action" && actionName ? ` (${actionName})` : ""} failed${status}`,
               actions,
             };
     } finally {

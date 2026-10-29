@@ -1,3 +1,5 @@
+import type { ExecutionTarget } from "../computer/session.js";
+
 export type WorkflowStep =
   | { type: "navigate"; url: string }
   | { type: "type"; text: string; target?: string; region?: string }
@@ -11,14 +13,23 @@ export type WorkflowStep =
   | { type: "click"; x: number; y: number }
   | { type: "click"; target: string }
   | { type: "ai"; instruction: string };
-export type ResolvedWorkflow = { steps: WorkflowStep[] };
+export type ResolvedWorkflow = {
+  executionTarget: ExecutionTarget;
+  steps: WorkflowStep[];
+};
 
 export function parseWorkflow(input: unknown): ResolvedWorkflow {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new Error("Invalid workflow");
   const value = input as Record<string, unknown>;
+  const executionTarget =
+    value.executionTarget === undefined ? "browser" : value.executionTarget;
+  if (executionTarget !== "browser" && executionTarget !== "windows")
+    throw new Error("Invalid execution target");
   if (
-    Object.keys(value).length !== 1 ||
+    Object.keys(value).some(
+      (key) => !["steps", "executionTarget"].includes(key),
+    ) ||
     !Array.isArray(value.steps) ||
     value.steps.length < 1 ||
     value.steps.length > 30
@@ -127,5 +138,5 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
       return { type: "click", x: step.x, y: step.y };
     throw new Error("Invalid workflow step");
   });
-  return { steps };
+  return { executionTarget, steps };
 }
