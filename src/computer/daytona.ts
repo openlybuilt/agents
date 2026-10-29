@@ -492,8 +492,8 @@ export class DaytonaProvider implements ComputerProvider {
       options.executionTarget !== "windows"
     )
       throw new Error("Daytona requires the Windows execution target");
-    const timeoutMs = options.timeoutMs ?? 600000;
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600000)
+    const timeoutMs = options.timeoutMs ?? 3600000;
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 3600000)
       throw new RangeError("Invalid computer session time budget");
     options.signal?.throwIfAborted();
     return new DaytonaSession(
