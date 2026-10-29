@@ -4,6 +4,7 @@ import type { BrowserRecording } from "../browser/session.js";
 import type { WorkflowRunner } from "../workflow/runner.js";
 import { BackendClient, type RunUpdate } from "./backend-client.js";
 import type { RunRequest } from "./contracts.js";
+import { RunEventSender } from "./events.js";
 
 type ActiveRun = {
   request: RunRequest;
@@ -50,6 +51,9 @@ export class RunService {
 
   private async execute(run: ActiveRun): Promise<void> {
     const { request, controller } = run;
+    const events = request.workflow
+      ? new RunEventSender(this.backend, request.id)
+      : undefined;
     let reportingFailed = false;
     const report = async (update: RunUpdate) => {
       if (reportingFailed) throw new Error("Backend reporting unavailable");
@@ -83,6 +87,7 @@ export class RunService {
         ? await this.workflows.run(request.workflow, {
             ...options,
             onStep: (steps) => report({ status: "running", steps }),
+            onEvent: (event) => events?.emit(event),
             onRecording: async (capture) => {
               recording = capture;
               await this.backend.recordingStatus(
@@ -113,6 +118,7 @@ export class RunService {
         status: "interrupted",
         message: "Execution stopped because progress could not be saved",
       };
+    if (await events?.finish()) result = { ...result, logsPartial: true };
     await this.backend.update(request.id, {
       status: result.status,
       result,
