@@ -21,7 +21,14 @@ export type RunUpdate = {
 };
 
 export class BackendClient {
-  constructor(private readonly base: string) {
+  constructor(
+    private readonly base: string,
+    private readonly callbackToken: string,
+  ) {
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(callbackToken))
+      throw new Error(
+        "AGENTS_CALLBACK_TOKEN must be 32 to 256 URL-safe characters",
+      );
     const url = new URL(base);
     if (
       url.protocol !== "http:" ||
@@ -40,7 +47,10 @@ export class BackendClient {
       new URL(`/internal/runs/${encodeURIComponent(id)}/update`, this.base),
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.callbackToken}`,
+        },
         body: JSON.stringify(update),
         signal: AbortSignal.timeout(5000),
         redirect: "error",
@@ -59,7 +69,10 @@ export class BackendClient {
       new URL(`/internal/runs/${encodeURIComponent(id)}/events`, this.base),
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.callbackToken}`,
+        },
         body: JSON.stringify({ events }),
         signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]),
         redirect: "error",
@@ -81,7 +94,10 @@ export class BackendClient {
       ),
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.callbackToken}`,
+        },
         body: JSON.stringify({ status, ...reference }),
         signal: AbortSignal.timeout(5000),
         redirect: "error",
@@ -99,7 +115,10 @@ export class BackendClient {
       new URL(`/internal/runs/${encodeURIComponent(id)}/recording`, this.base),
       {
         method: "POST",
-        headers: { "content-type": "video/mp4" },
+        headers: {
+          "content-type": "video/mp4",
+          authorization: `Bearer ${this.callbackToken}`,
+        },
         body: video,
         signal: AbortSignal.timeout(30000),
         redirect: "error",
