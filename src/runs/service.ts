@@ -100,7 +100,12 @@ export class RunService {
                   ) => {
                     run.stopRecording = stop;
                     if (run.recordingDisabled) {
-                      await stop();
+                      try {
+                        await stop();
+                      } catch (error) {
+                        controller.abort();
+                        throw error;
+                      }
                       return;
                     }
                     recording = capture;
@@ -164,7 +169,12 @@ export class RunService {
     const run = this.active.get(id);
     if (!run) return undefined;
     run.recordingDisabled = true;
-    await run.stopRecording?.();
+    try {
+      await run.stopRecording?.();
+    } catch (error) {
+      run.controller.abort();
+      throw error;
+    }
     return this.get(id);
   }
 
