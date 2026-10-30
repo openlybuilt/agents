@@ -72,7 +72,14 @@ export class WorkflowRunner {
         try {
           recording = await session.startRecording();
           await options.onRecording(recording, () =>
-            session!.stopRecording(options.recordingOutageSignal),
+            session!.stopRecording(
+              AbortSignal.any([
+                AbortSignal.timeout(15000),
+                ...(options.recordingOutageSignal
+                  ? [options.recordingOutageSignal]
+                  : []),
+              ]),
+            ),
           );
         } catch {
           options.onRecordingError?.();
