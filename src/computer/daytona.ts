@@ -411,7 +411,7 @@ class DaytonaSession implements ComputerSession {
     this.closing = true;
     this.controller.abort();
     this.closePromise = (async () => {
-      const signal = this.recorder?.cleanupSignal ?? AbortSignal.timeout(20000);
+      const signal = AbortSignal.timeout(20000);
       if (this.recorder)
         await this.recorder.finish(this.tail).catch(() => undefined);
       else await this.tail;
