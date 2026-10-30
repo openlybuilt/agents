@@ -74,6 +74,7 @@ export class RunService {
       } catch (error) {
         if (!run.readinessController.signal.aborted) {
           reportingFailed = true;
+          run.recordingController.abort();
           controller.abort();
         }
         throw error;
@@ -86,6 +87,7 @@ export class RunService {
         if (run.status !== "cancelling") run.status = update.status;
       } catch (error) {
         reportingFailed = true;
+        run.recordingController.abort();
         controller.abort();
         throw error;
       }
