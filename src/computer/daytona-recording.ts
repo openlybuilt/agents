@@ -1,3 +1,7 @@
+import {
+  COMPUTER_CLEANUP_MS,
+  RECORDING_EXPORT_MS,
+} from "./recording-timeouts.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { DaytonaApi, DaytonaError } from "./daytona-api.js";
 import type { ComputerRecording } from "./session.js";
@@ -18,13 +22,15 @@ export class DaytonaRecording {
   ) {}
 
   get cleanupSignal(): AbortSignal {
-    return (this.cleanup ??= AbortSignal.timeout(50000));
+    return (this.cleanup ??= AbortSignal.timeout(
+      RECORDING_EXPORT_MS + COMPUTER_CLEANUP_MS,
+    ));
   }
 
   private get exportSignal(): AbortSignal {
     return (this.exporting ??= AbortSignal.any([
       this.cleanupSignal,
-      AbortSignal.timeout(30000),
+      AbortSignal.timeout(RECORDING_EXPORT_MS),
     ]));
   }
 
@@ -93,7 +99,7 @@ export class DaytonaRecording {
         "Windows recording stop",
         { id: this.id },
         "POST",
-        5000,
+        RECORDING_EXPORT_MS,
       );
       while (recording.status !== "completed") {
         if (
@@ -108,6 +114,9 @@ export class DaytonaRecording {
           "computeruse/recordings/" + encodeURIComponent(this.id),
           deadline,
           "Windows recording completion",
+          undefined,
+          "GET",
+          RECORDING_EXPORT_MS,
         );
       }
       if (

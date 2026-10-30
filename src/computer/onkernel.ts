@@ -1,3 +1,4 @@
+import { RECORDING_EXPORT_MS } from "./recording-timeouts.js";
 import Kernel, { NotFoundError } from "@onkernel/sdk";
 import { ExecutionTargetUnavailableError } from "./providers.js";
 import type {
@@ -64,7 +65,7 @@ class OnKernelSession implements ComputerSession {
         { id: this.id },
         {
           signal: AbortSignal.any([
-            AbortSignal.timeout(15000),
+            AbortSignal.timeout(signal ? RECORDING_EXPORT_MS : 15000),
             ...(signal ? [signal] : []),
           ]),
         },
