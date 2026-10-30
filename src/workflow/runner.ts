@@ -40,6 +40,7 @@ export class WorkflowRunner {
       onLiveView?: (url?: string) => Promise<void>;
       shouldRecord?: () => boolean;
       recordingOutageSignal?: AbortSignal;
+      recordingTransferSignal?: AbortSignal;
       onRecording?: (
         recording: ComputerRecording,
         stop: () => Promise<void>,
@@ -242,6 +243,9 @@ export class WorkflowRunner {
           AbortSignal.timeout(30000),
           ...(options.recordingOutageSignal
             ? [options.recordingOutageSignal]
+            : []),
+          ...(options.recordingTransferSignal
+            ? [options.recordingTransferSignal]
             : []),
         ]);
         if (recording) {

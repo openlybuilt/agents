@@ -128,6 +128,7 @@ export class RunService {
             onStep: (steps) => report({ status: "running", steps }),
             onEvent: (event) => events?.emit(event),
             recordingOutageSignal: run.recordingOutageController.signal,
+            recordingTransferSignal: run.recordingController.signal,
             ...(request.recordingEnabled
               ? {
                   shouldRecord: () => !run.recordingDisabled,
