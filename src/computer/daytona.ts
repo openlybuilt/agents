@@ -1,3 +1,4 @@
+import { RECORDING_RESOURCE_GRACE_MS } from "./recording-timeouts.js";
 import { randomUUID } from "node:crypto";
 import { DaytonaRecording } from "./daytona-recording.js";
 import {
@@ -109,7 +110,9 @@ class DaytonaSession implements ComputerSession {
           autoStopInterval: 0,
           autoPauseInterval: 0,
           autoDeleteInterval: 0,
-          ttlMinutes: Math.ceil((this.timeoutMs + 120000) / 60000),
+          ttlMinutes: Math.ceil(
+            (this.timeoutMs + RECORDING_RESOURCE_GRACE_MS) / 60000,
+          ),
         },
         "POST",
         30000,
@@ -177,7 +180,7 @@ class DaytonaSession implements ComputerSession {
       const preview = await this.main(
         this.sandboxPath +
           "/ports/6080/signed-preview-url?expiresInSeconds=" +
-          Math.ceil((this.timeoutMs + 120000) / 1000),
+          Math.ceil((this.timeoutMs + RECORDING_RESOURCE_GRACE_MS) / 1000),
         this.signal,
       );
       this.view = liveView(preview, this.api.protocol === "https:");

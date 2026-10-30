@@ -1,4 +1,7 @@
-import { RECORDING_EXPORT_MS } from "./recording-timeouts.js";
+import {
+  RECORDING_EXPORT_MS,
+  RECORDING_RESOURCE_GRACE_MS,
+} from "./recording-timeouts.js";
 import Kernel, { NotFoundError } from "@onkernel/sdk";
 import { ExecutionTargetUnavailableError } from "./providers.js";
 import type {
@@ -258,7 +261,9 @@ export class OnKernelProvider implements ComputerProvider {
     // Do not abort an in-flight create: its eventual ID is needed for cleanup.
     const browser = await this.client.browsers.create({
       headless: false,
-      timeout_seconds: Math.ceil((options.timeoutMs ?? 0) / 1000) + 60,
+      timeout_seconds: Math.ceil(
+        ((options.timeoutMs ?? 600000) + RECORDING_RESOURCE_GRACE_MS) / 1000,
+      ),
     });
     const session = new OnKernelSession(
       this.client,
