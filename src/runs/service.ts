@@ -11,6 +11,8 @@ type ActiveRun = {
   status: RunUpdate["status"] | "cancelling";
   controller: AbortController;
   task: Promise<void>;
+  recordingDisabled: boolean;
+  stopRecording?: () => Promise<void>;
 };
 
 export class RunService {
@@ -41,6 +43,7 @@ export class RunService {
       status: "provisioning",
       controller: new AbortController(),
       task: Promise.resolve(),
+      recordingDisabled: !request.recordingEnabled,
     };
     this.active.set(request.id, run);
     run.task = this.execute(run)
@@ -71,7 +74,7 @@ export class RunService {
     let recordingFailed = false;
     try {
       await report({ status: "provisioning" });
-      if (request.workflow)
+      if (request.workflow && request.recordingEnabled)
         await this.backend
           .recordingStatus(request.id, "pending")
           .catch(() =>
@@ -88,17 +91,30 @@ export class RunService {
             ...options,
             onStep: (steps) => report({ status: "running", steps }),
             onEvent: (event) => events?.emit(event),
-            onRecording: async (capture) => {
-              recording = capture;
-              await this.backend.recordingStatus(
-                request.id,
-                "pending",
-                capture,
-              );
-            },
-            onRecordingError: () => {
-              recordingFailed = true;
-            },
+            ...(request.recordingEnabled
+              ? {
+                  shouldRecord: () => !run.recordingDisabled,
+                  onRecording: async (
+                    capture: BrowserRecording,
+                    stop: () => Promise<void>,
+                  ) => {
+                    run.stopRecording = stop;
+                    if (run.recordingDisabled) {
+                      await stop();
+                      return;
+                    }
+                    recording = capture;
+                    await this.backend.recordingStatus(
+                      request.id,
+                      "pending",
+                      capture,
+                    );
+                  },
+                  onRecordingError: () => {
+                    recordingFailed = true;
+                  },
+                }
+              : {}),
             onLiveView: (url) =>
               report({
                 status:
@@ -124,7 +140,11 @@ export class RunService {
       result,
       liveViewUrl: null,
     });
-    if (request.workflow) {
+    if (
+      request.workflow &&
+      request.recordingEnabled &&
+      !run.recordingDisabled
+    ) {
       try {
         if (!recording || recordingFailed)
           throw new Error("Browser recording was unavailable");
@@ -138,6 +158,14 @@ export class RunService {
           );
       }
     }
+  }
+
+  async disableRecording(id: string) {
+    const run = this.active.get(id);
+    if (!run) return undefined;
+    run.recordingDisabled = true;
+    await run.stopRecording?.();
+    return this.get(id);
   }
 
   cancel(id: string) {

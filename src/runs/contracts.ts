@@ -7,6 +7,7 @@ export type RunRequest = {
   instruction: string;
   maxSteps: number;
   timeoutMs: number;
+  recordingEnabled: boolean;
   workflow?: ResolvedWorkflow;
 };
 export function parseRun(value: unknown): RunRequest {
@@ -16,9 +17,14 @@ export function parseRun(value: unknown): RunRequest {
   if (
     Object.keys(r).some(
       (key) =>
-        !["id", "instruction", "maxSteps", "timeoutMs", "workflow"].includes(
-          key,
-        ),
+        ![
+          "id",
+          "instruction",
+          "maxSteps",
+          "timeoutMs",
+          "workflow",
+          "recordingEnabled",
+        ].includes(key),
     )
   )
     throw new Error("Unknown run field");
@@ -38,6 +44,11 @@ export function parseRun(value: unknown): RunRequest {
   const maxSteps = r.maxSteps,
     timeoutMs = r.timeoutMs;
   if (
+    r.recordingEnabled !== undefined &&
+    typeof r.recordingEnabled !== "boolean"
+  )
+    throw new Error("Invalid recordingEnabled");
+  if (
     typeof maxSteps !== "number" ||
     !Number.isInteger(maxSteps) ||
     maxSteps < 1 ||
@@ -56,6 +67,7 @@ export function parseRun(value: unknown): RunRequest {
     instruction: r.instruction,
     maxSteps,
     timeoutMs,
+    recordingEnabled: r.recordingEnabled ?? true,
     ...(r.workflow === undefined
       ? {}
       : { workflow: parseWorkflow(r.workflow) }),
