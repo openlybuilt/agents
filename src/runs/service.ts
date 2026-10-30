@@ -16,6 +16,7 @@ type ActiveRun = {
   task: Promise<void>;
   recordingDisabled: boolean;
   recordingController: AbortController;
+  recordingOutageController: AbortController;
   stopRecording?: () => Promise<void>;
 };
 
@@ -50,6 +51,7 @@ export class RunService {
       task: Promise.resolve(),
       recordingDisabled: !request.recordingEnabled,
       recordingController: new AbortController(),
+      recordingOutageController: new AbortController(),
     };
     this.active.set(request.id, run);
     run.task = this.execute(run)
@@ -75,6 +77,7 @@ export class RunService {
         if (!run.readinessController.signal.aborted) {
           reportingFailed = true;
           run.recordingController.abort();
+          run.recordingOutageController.abort();
           controller.abort();
         }
         throw error;
@@ -88,6 +91,7 @@ export class RunService {
       } catch (error) {
         reportingFailed = true;
         run.recordingController.abort();
+        run.recordingOutageController.abort();
         controller.abort();
         throw error;
       }
@@ -123,6 +127,7 @@ export class RunService {
             ...options,
             onStep: (steps) => report({ status: "running", steps }),
             onEvent: (event) => events?.emit(event),
+            recordingOutageSignal: run.recordingOutageController.signal,
             ...(request.recordingEnabled
               ? {
                   shouldRecord: () => !run.recordingDisabled,

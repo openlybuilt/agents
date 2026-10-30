@@ -39,6 +39,7 @@ export class WorkflowRunner {
       onEvent?: EventSink;
       onLiveView?: (url?: string) => Promise<void>;
       shouldRecord?: () => boolean;
+      recordingOutageSignal?: AbortSignal;
       onRecording?: (
         recording: ComputerRecording,
         stop: () => Promise<void>,
@@ -70,7 +71,9 @@ export class WorkflowRunner {
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
           recording = await session.startRecording();
-          await options.onRecording(recording, () => session!.stopRecording());
+          await options.onRecording(recording, () =>
+            session!.stopRecording(options.recordingOutageSignal),
+          );
         } catch {
           options.onRecordingError?.();
         }
@@ -230,6 +233,9 @@ export class WorkflowRunner {
         const exportSignal = AbortSignal.any([
           cleanup,
           AbortSignal.timeout(30000),
+          ...(options.recordingOutageSignal
+            ? [options.recordingOutageSignal]
+            : []),
         ]);
         if (recording) {
           try {
