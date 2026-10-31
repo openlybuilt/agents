@@ -78,6 +78,10 @@ const server = createServer((request, response) => {
     ) {
       return send(response, 401, { error: "Unauthorized" });
     }
+    if (request.method === "GET" && request.url === "/capabilities")
+      return send(response, 200, {
+        executionTargets: computer.executionTargets(),
+      });
     if (request.method === "POST" && request.url === "/runs") {
       if (
         !/^application\/json(?:\s*;|$)/i.test(
