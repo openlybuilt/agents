@@ -1,5 +1,5 @@
 import type { ComputerAction } from "../agent/actions.js";
-import type { BrowserScreenshot } from "../browser/session.js";
+import type { ComputerScreenshot } from "../computer/session.js";
 
 export type ModelDecision = (
   | { type: "action"; action: ComputerAction; observation: string }
@@ -7,7 +7,7 @@ export type ModelDecision = (
 ) & { usage?: { inputTokens: number; outputTokens: number } };
 export type ModelContext = {
   instruction: string;
-  screenshot: BrowserScreenshot;
+  screenshot: ComputerScreenshot;
   previousActions: readonly ComputerAction[];
   previousObservations: readonly string[];
 };

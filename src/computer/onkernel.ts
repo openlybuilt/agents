@@ -1,9 +1,11 @@
 import Kernel, { NotFoundError } from "@onkernel/sdk";
+import { ExecutionTargetUnavailableError } from "./providers.js";
 import type {
-  BrowserProvider,
-  BrowserRecording,
-  BrowserScreenshot,
-  BrowserSession,
+  ComputerOpenOptions,
+  ComputerProvider,
+  ComputerRecording,
+  ComputerScreenshot,
+  ComputerSession,
 } from "./session.js";
 
 function coordinate(value: number): void {
@@ -12,7 +14,7 @@ function coordinate(value: number): void {
   }
 }
 
-class OnKernelSession implements BrowserSession {
+class OnKernelSession implements ComputerSession {
   private tail: Promise<void> = Promise.resolve();
   private closing = false;
   private closed = false;
@@ -27,7 +29,7 @@ class OnKernelSession implements BrowserSession {
     private readonly recordingSeconds = 600,
   ) {}
 
-  startRecording(): Promise<BrowserRecording> {
+  startRecording(): Promise<ComputerRecording> {
     return this.run(async () => {
       const replay = await this.client.browsers.replays.start(
         this.id,
@@ -108,7 +110,7 @@ class OnKernelSession implements BrowserSession {
     return result;
   }
 
-  screenshot(): Promise<BrowserScreenshot> {
+  screenshot(): Promise<ComputerScreenshot> {
     return this.run(async () => {
       const response = await this.client.browsers.computer.captureScreenshot(
         this.id,
@@ -214,7 +216,7 @@ class OnKernelSession implements BrowserSession {
   }
 }
 
-export class OnKernelProvider implements BrowserProvider {
+export class OnKernelProvider implements ComputerProvider {
   private readonly client: Kernel;
 
   constructor(apiKey: string) {
@@ -222,10 +224,10 @@ export class OnKernelProvider implements BrowserProvider {
     this.client = new Kernel({ apiKey, maxRetries: 0 });
   }
 
-  async open(
-    options: { signal?: AbortSignal; timeoutMs?: number } = {},
-  ): Promise<BrowserSession> {
+  async open(options: ComputerOpenOptions = {}): Promise<ComputerSession> {
     options.signal?.throwIfAborted();
+    if (options.executionTarget && options.executionTarget !== "browser")
+      throw new ExecutionTargetUnavailableError(options.executionTarget);
     if (
       options.timeoutMs !== undefined &&
       (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)

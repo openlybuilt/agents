@@ -1,19 +1,27 @@
-export interface BrowserScreenshot {
+export type ExecutionTarget = "browser" | "windows";
+
+export type ComputerOpenOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  executionTarget?: ExecutionTarget;
+};
+
+export interface ComputerScreenshot {
   bytes: Uint8Array;
   contentType: string;
 }
 
-export interface BrowserRecording {
+export interface ComputerRecording {
   browserId: string;
   replayId: string;
   download(): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export interface BrowserSession {
+export interface ComputerSession {
   readonly liveViewUrl?: string;
-  startRecording(): Promise<BrowserRecording>;
+  startRecording(): Promise<ComputerRecording>;
   stopRecording(): Promise<void>;
-  screenshot(): Promise<BrowserScreenshot>;
+  screenshot(): Promise<ComputerScreenshot>;
   navigate(url: string): Promise<void>;
   click(x: number, y: number): Promise<void>;
   type(text: string): Promise<void>;
@@ -23,9 +31,6 @@ export interface BrowserSession {
   close(): Promise<void>;
 }
 
-export interface BrowserProvider {
-  open(options?: {
-    signal?: AbortSignal;
-    timeoutMs?: number;
-  }): Promise<BrowserSession>;
+export interface ComputerProvider {
+  open(options?: ComputerOpenOptions): Promise<ComputerSession>;
 }

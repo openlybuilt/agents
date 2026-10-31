@@ -1,4 +1,4 @@
-import type { BrowserSession } from "../browser/session.js";
+import type { ComputerSession } from "../computer/session.js";
 
 export type ComputerAction =
   | { name: "navigate"; url: string }
@@ -76,7 +76,7 @@ export function parseAction(name: string, raw: unknown): ComputerAction {
 }
 
 export async function executeAction(
-  session: BrowserSession,
+  session: ComputerSession,
   action: ComputerAction,
 ): Promise<void> {
   switch (action.name) {
