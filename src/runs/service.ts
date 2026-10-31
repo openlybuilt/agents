@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ComputerRecording } from "../computer/session.js";
 import type { WorkflowRunner } from "../workflow/runner.js";
@@ -10,6 +11,8 @@ type ActiveRun = {
   request: RunRequest;
   status: RunUpdate["status"] | "cancelling";
   controller: AbortController;
+  readinessController: AbortController;
+  readinessTask?: Promise<void>;
   task: Promise<void>;
   recordingDisabled: boolean;
   stopRecording?: () => Promise<void>;
@@ -42,13 +45,18 @@ export class RunService {
       request,
       status: "provisioning",
       controller: new AbortController(),
+      readinessController: new AbortController(),
       task: Promise.resolve(),
       recordingDisabled: !request.recordingEnabled,
     };
     this.active.set(request.id, run);
     run.task = this.execute(run)
       .catch(() => console.error("Execution result could not reach backend"))
-      .finally(() => this.active.delete(request.id));
+      .finally(async () => {
+        run.readinessController.abort();
+        await run.readinessTask;
+        this.active.delete(request.id);
+      });
     return this.get(request.id)!;
   }
 
@@ -58,6 +66,17 @@ export class RunService {
       ? new RunEventSender(this.backend, request.id)
       : undefined;
     let reportingFailed = false;
+    const checkReadiness = async () => {
+      try {
+        await this.backend.ready(run.readinessController.signal);
+      } catch (error) {
+        if (!run.readinessController.signal.aborted) {
+          reportingFailed = true;
+          controller.abort();
+        }
+        throw error;
+      }
+    };
     const report = async (update: RunUpdate) => {
       if (reportingFailed) throw new Error("Backend reporting unavailable");
       try {
@@ -73,6 +92,15 @@ export class RunService {
     let recording: ComputerRecording | undefined;
     let recordingFailed = false;
     try {
+      await checkReadiness();
+      run.readinessTask = (async () => {
+        for (;;) {
+          await delay(5000, undefined, {
+            signal: run.readinessController.signal,
+          });
+          await checkReadiness();
+        }
+      })().catch(() => undefined);
       await report({ status: "provisioning" });
       if (request.workflow && request.recordingEnabled)
         await this.backend

@@ -31,8 +31,12 @@ export class ComputerAgent {
       throw new Error("Instruction must contain 1 to 10000 characters");
     if (!Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > 100)
       throw new Error("maxSteps must be between 1 and 100");
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 600_000)
-      throw new Error("timeoutMs must be between 1000 and 600000");
+    if (
+      !Number.isInteger(timeoutMs) ||
+      timeoutMs < 1000 ||
+      timeoutMs > 3_600_000
+    )
+      throw new Error("timeoutMs must be between 1000 and 3600000");
     const timeout = AbortSignal.timeout(timeoutMs);
     const signal = options.signal
       ? AbortSignal.any([options.signal, timeout])

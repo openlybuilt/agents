@@ -27,6 +27,7 @@ class OnKernelSession implements ComputerSession {
     private readonly id: string,
     readonly liveViewUrl?: string,
     private readonly recordingSeconds = 600,
+    private readonly signal?: AbortSignal,
   ) {}
 
   startRecording(): Promise<ComputerRecording> {
@@ -38,7 +39,12 @@ class OnKernelSession implements ComputerSession {
           framerate: 10,
           max_duration_in_seconds: this.recordingSeconds,
         },
-        { signal: AbortSignal.timeout(15000) },
+        {
+          signal: AbortSignal.any([
+            AbortSignal.timeout(15000),
+            ...(this.signal ? [this.signal] : []),
+          ]),
+        },
       );
       this.replayId = replay.replay_id;
       return {
@@ -59,7 +65,7 @@ class OnKernelSession implements ComputerSession {
         { signal: AbortSignal.timeout(15000) },
       );
       this.replayStopped = true;
-    });
+    }, true);
   }
 
   private async downloadRecording(): Promise<Uint8Array<ArrayBuffer>> {
@@ -98,11 +104,16 @@ class OnKernelSession implements ComputerSession {
     }
   }
 
-  private run<T>(action: () => Promise<T>): Promise<T> {
+  private run<T>(action: () => Promise<T>, cleanup = false): Promise<T> {
     if (this.closing || this.closed) {
       return Promise.reject(new Error("Browser session is closing or closed"));
     }
-    const result = this.tail.then(action);
+    if (!cleanup && this.signal?.aborted)
+      return Promise.reject(this.signal.reason);
+    const result = this.tail.then(() => {
+      if (!cleanup) this.signal?.throwIfAborted();
+      return action();
+    });
     this.tail = result.then(
       () => undefined,
       () => undefined,
@@ -114,6 +125,8 @@ class OnKernelSession implements ComputerSession {
     return this.run(async () => {
       const response = await this.client.browsers.computer.captureScreenshot(
         this.id,
+        {},
+        { signal: this.signal },
       );
       return {
         bytes: new Uint8Array(await response.arrayBuffer()),
@@ -129,10 +142,14 @@ class OnKernelSession implements ComputerSession {
       throw new Error("Navigation requires an HTTP or HTTPS URL");
     }
     return this.run(async () => {
-      const result = await this.client.browsers.playwright.execute(this.id, {
-        code: `await page.goto(${JSON.stringify(parsed.href)}, { waitUntil: "domcontentloaded", timeout: 30000 });`,
-        timeout_sec: 35,
-      });
+      const result = await this.client.browsers.playwright.execute(
+        this.id,
+        {
+          code: `await page.goto(${JSON.stringify(parsed.href)}, { waitUntil: "domcontentloaded", timeout: 30000 });`,
+          timeout_sec: 35,
+        },
+        { signal: this.signal },
+      );
       if (!result.success) throw new Error("Browser navigation failed");
     });
   }
@@ -141,13 +158,21 @@ class OnKernelSession implements ComputerSession {
     coordinate(x);
     coordinate(y);
     return this.run(() =>
-      this.client.browsers.computer.clickMouse(this.id, { x, y }),
+      this.client.browsers.computer.clickMouse(
+        this.id,
+        { x, y },
+        { signal: this.signal },
+      ),
     );
   }
 
   type(text: string): Promise<void> {
     return this.run(() =>
-      this.client.browsers.computer.typeText(this.id, { text }),
+      this.client.browsers.computer.typeText(
+        this.id,
+        { text },
+        { signal: this.signal },
+      ),
     );
   }
 
@@ -156,7 +181,11 @@ class OnKernelSession implements ComputerSession {
       throw new Error("At least one non-empty key is required");
     }
     return this.run(() =>
-      this.client.browsers.computer.pressKey(this.id, { keys }),
+      this.client.browsers.computer.pressKey(
+        this.id,
+        { keys },
+        { signal: this.signal },
+      ),
     );
   }
 
@@ -167,12 +196,11 @@ class OnKernelSession implements ComputerSession {
       throw new RangeError("Scroll amounts must be integers");
     }
     return this.run(() =>
-      this.client.browsers.computer.scroll(this.id, {
-        x,
-        y,
-        delta_x: deltaX,
-        delta_y: deltaY,
-      }),
+      this.client.browsers.computer.scroll(
+        this.id,
+        { x, y, delta_x: deltaX, delta_y: deltaY },
+        { signal: this.signal },
+      ),
     );
   }
 
@@ -184,10 +212,14 @@ class OnKernelSession implements ComputerSession {
     )
       throw new RangeError("Invalid page scroll amount");
     return this.run(async () => {
-      const result = await this.client.browsers.playwright.execute(this.id, {
-        code: `await page.evaluate(() => window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: "instant" }));`,
-        timeout_sec: 10,
-      });
+      const result = await this.client.browsers.playwright.execute(
+        this.id,
+        {
+          code: `await page.evaluate(() => window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: "instant" }));`,
+          timeout_sec: 10,
+        },
+        { signal: this.signal },
+      );
       if (!result.success) throw new Error("Page scroll failed");
     });
   }
@@ -243,6 +275,7 @@ export class OnKernelProvider implements ComputerProvider {
       browser.session_id,
       browser.browser_live_view_url,
       Math.ceil((options.timeoutMs ?? 600000) / 1000) + 60,
+      options.signal,
     );
     if (options.signal?.aborted) {
       try {
