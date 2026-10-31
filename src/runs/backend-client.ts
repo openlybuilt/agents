@@ -1,4 +1,3 @@
-import { RECORDING_EXPORT_MS } from "../computer/recording-timeouts.js";
 import type { AgentResult } from "../agent/result.js";
 import type { StepResult, WorkflowResult } from "../workflow/runner.js";
 import type { RunEvent } from "./events.js";
@@ -131,10 +130,7 @@ export class BackendClient {
           authorization: `Bearer ${this.callbackToken}`,
         },
         body: video,
-        signal: AbortSignal.any([
-          signal,
-          AbortSignal.timeout(RECORDING_EXPORT_MS),
-        ]),
+        signal,
         redirect: "error",
         ...{ duplex: "half" as const },
       },

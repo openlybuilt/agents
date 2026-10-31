@@ -1,6 +1,7 @@
 import {
   COMPUTER_CLEANUP_MS,
   RECORDING_EXPORT_MS,
+  WINDOWS_RECORDING_EXPORT_MS,
 } from "../computer/recording-timeouts.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
@@ -241,12 +242,16 @@ export class WorkflowRunner {
             message: "Run status update failed",
           };
         }
+        const recordingExportMs =
+          workflow.executionTarget === "windows"
+            ? WINDOWS_RECORDING_EXPORT_MS
+            : RECORDING_EXPORT_MS;
         const cleanup = AbortSignal.timeout(
-          RECORDING_EXPORT_MS + COMPUTER_CLEANUP_MS,
+          recordingExportMs + COMPUTER_CLEANUP_MS,
         );
         const exportSignal = AbortSignal.any([
           cleanup,
-          AbortSignal.timeout(RECORDING_EXPORT_MS),
+          AbortSignal.timeout(recordingExportMs),
           ...(options.recordingOutageSignal
             ? [options.recordingOutageSignal]
             : []),
