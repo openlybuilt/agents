@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DaytonaRecording } from "./daytona-recording.js";
 import {
   DaytonaApi,
   DaytonaError,
@@ -33,6 +34,7 @@ class DaytonaSession implements ComputerSession {
   private width = 0;
   private height = 0;
   private pointer?: { x: number; y: number };
+  private recorder?: DaytonaRecording;
 
   constructor(
     private readonly transport: DaytonaApi,
@@ -147,6 +149,11 @@ class DaytonaSession implements ComputerSession {
       if (this.api.protocol === "https:" && this.toolbox.protocol !== "https:")
         throw new DaytonaError("Windows toolbox validation");
       this.toolbox = new URL(encodeURIComponent(this.id!) + "/", this.toolbox);
+      this.recorder = new DaytonaRecording(
+        this.transport,
+        this.toolbox,
+        this.id!,
+      );
       await this.native("start", {});
       const ready = AbortSignal.any([this.signal, AbortSignal.timeout(30000)]);
       for (;;) {
@@ -391,14 +398,12 @@ class DaytonaSession implements ComputerSession {
     );
   }
   startRecording(): Promise<ComputerRecording> {
-    return Promise.reject(
-      new Error("Windows recording is unavailable in this release"),
-    );
+    return this.run(() => this.recorder!.start(this.signal));
   }
   stopRecording(): Promise<void> {
-    return Promise.reject(
-      new Error("Windows recording is unavailable in this release"),
-    );
+    const stopped = this.recorder!.finish(this.tail);
+    this.tail = stopped.catch(() => undefined);
+    return stopped;
   }
   close(): Promise<void> {
     if (this.closed) return Promise.resolve();
@@ -407,7 +412,9 @@ class DaytonaSession implements ComputerSession {
     this.controller.abort();
     this.closePromise = (async () => {
       const signal = AbortSignal.timeout(20000);
-      await this.tail;
+      if (this.recorder)
+        await this.recorder.finish(this.tail).catch(() => undefined);
+      else await this.tail;
       if (!this.id && this.ambiguousCreate) {
         const until = Date.now() + 10000;
         for (;;) {
