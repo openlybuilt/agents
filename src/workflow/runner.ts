@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import {
   ComputerSessionCleanupError,
+  HorizontalScrollUnavailableError,
   type ComputerProvider,
   type ComputerRecording,
   type ComputerSession,
@@ -170,6 +171,8 @@ export class WorkflowRunner {
           signal.throwIfAborted();
           evidence.status = "completed";
         } catch (error) {
+          if (error instanceof HorizontalScrollUnavailableError)
+            evidence.message = error.message;
           evidence.status = options.signal.aborted ? "cancelled" : "failed";
           emitEvent(options.onEvent, {
             kind: "step",
@@ -200,7 +203,8 @@ export class WorkflowRunner {
           ? "Workflow cancelled"
           : timeout.aborted
             ? "Workflow timed out"
-            : error instanceof ExecutionTargetUnavailableError
+            : error instanceof ExecutionTargetUnavailableError ||
+                error instanceof HorizontalScrollUnavailableError
               ? error.message
               : "Workflow step or computer operation failed",
         steps,

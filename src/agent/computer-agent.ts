@@ -1,4 +1,5 @@
 import type { ComputerProvider, ComputerSession } from "../computer/session.js";
+import { HorizontalScrollUnavailableError } from "../computer/session.js";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import type { ComputerModel, ModelDecision } from "../model/model.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
@@ -148,6 +149,12 @@ export class ComputerAgent {
         }
       }
     } catch (error) {
+      if (
+        options.session &&
+        !signal.aborted &&
+        error instanceof HorizontalScrollUnavailableError
+      )
+        throw error;
       const status =
         error &&
         typeof error === "object" &&
@@ -162,7 +169,8 @@ export class ComputerAgent {
           : {
               status: "failed",
               message:
-                error instanceof ExecutionTargetUnavailableError
+                error instanceof ExecutionTargetUnavailableError ||
+                error instanceof HorizontalScrollUnavailableError
                   ? error.message
                   : `${stage}${stage === "Computer action" && actionName ? ` (${actionName})` : ""} failed${status}`,
               actions,
