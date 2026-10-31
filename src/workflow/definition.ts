@@ -4,11 +4,10 @@ export type WorkflowStep =
   | { type: "navigate"; url: string }
   | { type: "type"; text: string; target?: string; region?: string }
   | { type: "wait"; seconds: number }
-  | {
+  | ({
       type: "scroll";
       direction: "up" | "down" | "left" | "right";
-      pixels: number;
-    }
+    } & ({ pixels: number } | { wheelTicks: number }))
   | { type: "press_keys"; keys: string[] }
   | { type: "click"; x: number; y: number }
   | { type: "click"; target: string }
@@ -76,17 +75,38 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
       };
     if (
       step.type === "scroll" &&
-      exact("type", "direction", "pixels") &&
       (step.direction === "up" ||
         step.direction === "down" ||
         step.direction === "left" ||
-        step.direction === "right") &&
-      typeof step.pixels === "number" &&
-      Number.isInteger(step.pixels) &&
-      step.pixels >= 1 &&
-      step.pixels <= 100000
-    )
-      return { type: "scroll", direction: step.direction, pixels: step.pixels };
+        step.direction === "right")
+    ) {
+      if (
+        executionTarget === "windows" &&
+        exact("type", "direction", "wheelTicks") &&
+        typeof step.wheelTicks === "number" &&
+        Number.isInteger(step.wheelTicks) &&
+        step.wheelTicks >= 1 &&
+        step.wheelTicks <= 100
+      )
+        return {
+          type: "scroll",
+          direction: step.direction,
+          wheelTicks: step.wheelTicks,
+        };
+      if (
+        executionTarget === "browser" &&
+        exact("type", "direction", "pixels") &&
+        typeof step.pixels === "number" &&
+        Number.isInteger(step.pixels) &&
+        step.pixels >= 1 &&
+        step.pixels <= 100000
+      )
+        return {
+          type: "scroll",
+          direction: step.direction,
+          pixels: step.pixels,
+        };
+    }
     if (
       step.type === "wait" &&
       exact("type", "seconds") &&

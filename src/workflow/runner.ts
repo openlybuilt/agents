@@ -1,9 +1,10 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
-import type {
-  ComputerProvider,
-  ComputerRecording,
-  ComputerSession,
+import {
+  ComputerSessionCleanupError,
+  type ComputerProvider,
+  type ComputerRecording,
+  type ComputerSession,
 } from "../computer/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
@@ -95,13 +96,22 @@ export class WorkflowRunner {
           signal.throwIfAborted();
           if (step.type === "navigate") await session.navigate(step.url);
           else if (step.type === "scroll") {
+            const distance =
+              "wheelTicks" in step ? step.wheelTicks : step.pixels;
             const amount = ["up", "left"].includes(step.direction)
-              ? -step.pixels
-              : step.pixels;
-            await session.scrollPage(
-              ["left", "right"].includes(step.direction) ? amount : 0,
-              ["up", "down"].includes(step.direction) ? amount : 0,
-            );
+              ? -distance
+              : distance;
+            const deltaX = ["left", "right"].includes(step.direction)
+              ? amount
+              : 0;
+            const deltaY = ["up", "down"].includes(step.direction) ? amount : 0;
+            if ("wheelTicks" in step) {
+              if (!session.scrollWheel)
+                throw new Error(
+                  "Computer session does not support wheel scrolling",
+                );
+              await session.scrollWheel(deltaX, deltaY);
+            } else await session.scrollPage(deltaX, deltaY);
           } else if (step.type === "wait")
             await delay(step.seconds * 1000, undefined, { signal });
           else if (step.type === "type") {
@@ -191,6 +201,8 @@ export class WorkflowRunner {
               : "Workflow step or computer operation failed",
         steps,
       };
+      if (error instanceof ComputerSessionCleanupError)
+        result.cleanupError = error.message;
     } finally {
       if (session) {
         try {
