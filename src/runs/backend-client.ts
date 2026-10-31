@@ -118,7 +118,8 @@ export class BackendClient {
 
   async uploadRecording(
     id: string,
-    video: Uint8Array<ArrayBuffer>,
+    video: ReadableStream<Uint8Array>,
+    signal: AbortSignal,
   ): Promise<void> {
     const response = await fetch(
       new URL(`/internal/runs/${encodeURIComponent(id)}/recording`, this.base),
@@ -129,8 +130,9 @@ export class BackendClient {
           authorization: `Bearer ${this.callbackToken}`,
         },
         body: video,
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
         redirect: "error",
+        ...{ duplex: "half" as const },
       },
     );
     await response.body?.cancel();

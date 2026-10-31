@@ -39,9 +39,15 @@ export class WorkflowRunner {
       onEvent?: EventSink;
       onLiveView?: (url?: string) => Promise<void>;
       shouldRecord?: () => boolean;
+      recordingOutageSignal?: AbortSignal;
+      recordingTransferSignal?: AbortSignal;
       onRecording?: (
         recording: ComputerRecording,
         stop: () => Promise<void>,
+      ) => Promise<void>;
+      onRecordingComplete?: (
+        recording: ComputerRecording,
+        signal: AbortSignal,
       ) => Promise<void>;
       onRecordingError?: () => void;
     },
@@ -50,7 +56,7 @@ export class WorkflowRunner {
     const signal = AbortSignal.any([options.signal, timeout]);
     const steps: StepResult[] = [];
     let session: ComputerSession | undefined;
-    let recordingStarted = false;
+    let recording: ComputerRecording | undefined;
     let result: WorkflowResult = {
       status: "completed",
       message: "Workflow completed",
@@ -65,9 +71,17 @@ export class WorkflowRunner {
       });
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
-          const recording = await session.startRecording();
-          recordingStarted = true;
-          await options.onRecording(recording, () => session!.stopRecording());
+          recording = await session.startRecording();
+          await options.onRecording(recording, () =>
+            session!.stopRecording(
+              AbortSignal.any([
+                AbortSignal.timeout(15000),
+                ...(options.recordingOutageSignal
+                  ? [options.recordingOutageSignal]
+                  : []),
+              ]),
+            ),
+          );
         } catch {
           options.onRecordingError?.();
         }
@@ -223,15 +237,27 @@ export class WorkflowRunner {
             message: "Run status update failed",
           };
         }
-        if (recordingStarted) {
+        const cleanup = AbortSignal.timeout(50000);
+        const exportSignal = AbortSignal.any([
+          cleanup,
+          AbortSignal.timeout(30000),
+          ...(options.recordingOutageSignal
+            ? [options.recordingOutageSignal]
+            : []),
+          ...(options.recordingTransferSignal
+            ? [options.recordingTransferSignal]
+            : []),
+        ]);
+        if (recording) {
           try {
-            await session.stopRecording();
+            await session.stopRecording(exportSignal);
+            await options.onRecordingComplete?.(recording, exportSignal);
           } catch {
             options.onRecordingError?.();
           }
         }
         try {
-          await session.close();
+          await session.close(cleanup);
         } catch {
           result = {
             ...result,

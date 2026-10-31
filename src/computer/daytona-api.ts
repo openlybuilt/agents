@@ -81,7 +81,8 @@ export class DaytonaApi {
     base: URL,
     path: string,
     signal: AbortSignal,
-  ): Promise<Uint8Array<ArrayBuffer>> {
+    expectedBytes?: number,
+  ): Promise<ReadableStream<Uint8Array>> {
     const stage = "Windows recording download";
     const response = await fetch(new URL(path, base), {
       headers: {
@@ -94,54 +95,62 @@ export class DaytonaApi {
     }).catch(() => {
       throw new DaytonaError(stage);
     });
-    const limit = 100 * 1024 * 1024;
     const header = response.headers.get("content-length");
-    const length = header === null ? undefined : Number(header);
+    const encoding = response.headers.get("content-encoding");
+    const length =
+      header === null || (encoding && encoding !== "identity")
+        ? expectedBytes
+        : Number(header);
     if (
       response.status !== 200 ||
       !response.body ||
       (length !== undefined &&
-        (!Number.isSafeInteger(length) || length < 1 || length > limit))
+        (!Number.isSafeInteger(length) || length < 16)) ||
+      (expectedBytes !== undefined &&
+        length !== undefined &&
+        length !== expectedBytes)
     ) {
       await response.body?.cancel().catch(() => undefined);
       throw new DaytonaError(stage, response.ok ? undefined : response.status);
     }
-    const encoding = response.headers.get("content-encoding");
-    const target =
-      length !== undefined && (!encoding || encoding === "identity")
-        ? Buffer.allocUnsafe(length)
-        : undefined;
-    const chunks: Uint8Array[] = [];
     const reader = response.body.getReader();
     let size = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (size + value.length > (target?.length ?? limit))
-          throw new DaytonaError(stage);
-        if (target) target.set(value, size);
-        else chunks.push(value);
-        size += value.length;
-      }
-      if (!size || (target && size !== target.length))
-        throw new DaytonaError(stage);
-      const bytes = target ?? Buffer.concat(chunks, size);
-      if (
-        bytes.length < 16 ||
-        bytes.toString("ascii", 4, 8) !== "ftyp" ||
-        bytes.readUInt32BE(0) < 16 ||
-        bytes.readUInt32BE(0) > bytes.length
-      )
-        throw new DaytonaError(stage);
-      return bytes;
-    } catch (error) {
-      if (error instanceof DaytonaError) throw error;
-      throw new DaytonaError(stage);
-    } finally {
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-    }
+    let finished = false;
+    return new ReadableStream({
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (finished) return;
+          if (done) {
+            if (size < 16 || (length !== undefined && size !== length))
+              throw new DaytonaError(stage);
+            finished = true;
+            reader.releaseLock();
+            controller.close();
+            return;
+          }
+          size += value.length;
+          if (
+            !Number.isSafeInteger(size) ||
+            (length !== undefined && size > length)
+          )
+            throw new DaytonaError(stage);
+          controller.enqueue(value);
+        } catch {
+          if (finished) return;
+          finished = true;
+          await reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+          controller.error(new DaytonaError(stage));
+        }
+      },
+      async cancel() {
+        if (finished) return;
+        finished = true;
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
+      },
+    });
   }
 
   async request(
