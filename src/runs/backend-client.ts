@@ -130,7 +130,7 @@ export class BackendClient {
           authorization: `Bearer ${this.callbackToken}`,
         },
         body: video,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+        signal,
         redirect: "error",
         ...{ duplex: "half" as const },
       },
