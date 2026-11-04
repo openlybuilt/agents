@@ -3,27 +3,45 @@ import type {
   ComputerProvider,
   ComputerSession,
   ExecutionTarget,
+  ProviderId,
 } from "./session.js";
 
 export class ExecutionTargetUnavailableError extends Error {
-  constructor(target: ExecutionTarget) {
+  constructor(target: ExecutionTarget, provider?: ProviderId) {
     super(
-      `${target === "windows" ? "Windows" : "Browser"} execution is unavailable`,
+      provider
+        ? `${provider} is unavailable for ${target} execution`
+        : `${target === "windows" ? "Windows" : "Browser"} execution is unavailable`,
     );
   }
 }
 
+type ProviderRegistry = Partial<
+  Record<ProviderId, Partial<Record<ExecutionTarget, ComputerProvider>>>
+>;
+
+const providerIds = ["onkernel", "daytona"] as const;
+const targets = ["browser", "windows"] as const;
+
 export class ComputerProviders implements ComputerProvider {
-  constructor(
-    private readonly providers: Partial<
-      Record<ExecutionTarget, ComputerProvider>
-    >,
-  ) {}
+  constructor(private readonly providers: ProviderRegistry) {}
 
   executionTargets(): ExecutionTarget[] {
-    return (["browser", "windows"] as const).filter(
-      (target) => this.providers[target] !== undefined,
+    return targets.filter((target) =>
+      providerIds.some((id) => this.providers[id]?.[target] !== undefined),
     );
+  }
+
+  providerCapabilities(): {
+    id: ProviderId;
+    executionTargets: ExecutionTarget[];
+  }[] {
+    return providerIds.flatMap((id) => {
+      const executionTargets = targets.filter(
+        (target) => this.providers[id]?.[target] !== undefined,
+      );
+      return executionTargets.length ? [{ id, executionTargets }] : [];
+    });
   }
 
   async open(options: ComputerOpenOptions = {}): Promise<ComputerSession> {
@@ -34,8 +52,12 @@ export class ComputerProviders implements ComputerProvider {
     if (target !== "browser" && target !== "windows")
       throw new Error("Unknown execution target");
     options.signal?.throwIfAborted();
-    const provider = this.providers[target];
-    if (!provider) throw new ExecutionTargetUnavailableError(target);
-    return provider.open({ ...options, executionTarget: target });
+    const id =
+      options.provider ?? (target === "browser" ? "onkernel" : "daytona");
+    if (!providerIds.includes(id)) throw new Error("Unknown computer provider");
+    const provider = this.providers[id]?.[target];
+    if (!provider)
+      throw new ExecutionTargetUnavailableError(target, options.provider);
+    return provider.open({ ...options, executionTarget: target, provider: id });
   }
 }
