@@ -133,9 +133,22 @@ export class E2BSession implements ComputerSession {
     });
   }
   pressKeys(keys: string[]): Promise<void> {
-    if (!keys.length || keys.some((key) => !/^[A-Za-z0-9_]+$/.test(key)))
+    if (
+      !Array.isArray(keys) ||
+      !keys.length ||
+      keys.length > 10 ||
+      keys.some(
+        (key) =>
+          typeof key !== "string" ||
+          key.length > 40 ||
+          key.split("+").some((part) => !/^[A-Za-z0-9_]+$/.test(part.trim())),
+      )
+    )
       throw new Error("Invalid key combination");
-    return this.run(() => this.sandbox.press(keys));
+    return this.run(async () => {
+      for (const key of keys)
+        await this.sandbox.press(key.split("+").map((part) => part.trim()));
+    });
   }
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     coordinate(x);
