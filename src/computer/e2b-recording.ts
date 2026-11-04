@@ -48,7 +48,15 @@ export class E2BRecording {
     if (this.stopped) return;
     signal.throwIfAborted();
     await this.process.sendStdin("q\n", { signal });
+    // SDK wait() rejects when FFmpeg exits nonzero. Check the resulting container
+    // has a video stream as well; actual playback still requires a live test.
     await this.waitForCompletion(signal);
+    const result = await this.sandbox.commands.run(
+      'ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 "$RECORDING_PATH"',
+      { envs: { RECORDING_PATH: this.path }, signal, timeoutMs: 15000 },
+    );
+    if (result.stdout.trim() !== "video")
+      throw new Error("Recording does not contain a video stream");
     this.stopped = true;
   }
 
