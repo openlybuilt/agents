@@ -73,6 +73,9 @@ export class WorkflowRunner {
         signal,
         timeoutMs: options.timeoutMs,
         executionTarget: workflow.executionTarget,
+        ...(workflow.provider === undefined
+          ? {}
+          : { provider: workflow.provider }),
       });
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
