@@ -1,5 +1,9 @@
 import type { ComputerProvider, ComputerSession } from "../computer/session.js";
-import { HorizontalScrollUnavailableError } from "../computer/session.js";
+import {
+  ClickOutsideScreenshotError,
+  HorizontalScrollUnavailableError,
+  validateClickCoordinates,
+} from "../computer/session.js";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import type { ComputerModel, ModelDecision } from "../model/model.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
@@ -114,6 +118,27 @@ export class ComputerAgent {
           !options.allowedActions.includes(action.name)
         )
           throw new Error("Action is not allowed for this step");
+        if (action.name === "click") {
+          try {
+            validateClickCoordinates(screenshot, action.x, action.y);
+          } catch (error) {
+            if (!(error instanceof ClickOutsideScreenshotError)) throw error;
+            emitEvent(options.onEvent, {
+              kind: "action",
+              action: "click",
+              status: "failed",
+              durationMs: 0,
+            });
+            history.push(action);
+            observations.push(
+              "The previous click was not executed because its coordinates were outside the screenshot. Choose coordinates inside the current screenshot.",
+            );
+            result.message =
+              "Click coordinates remained outside the computer screen";
+            continue;
+          }
+        }
+        result.message = "Step limit reached";
         const evidence: ActionEvidence = {
           name: action.name,
           status: "failed",
