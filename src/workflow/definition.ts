@@ -1,3 +1,4 @@
+import { isProviderId, supportsTarget } from "../computer/provider-catalog.js";
 import type { ExecutionTarget, ProviderId } from "../computer/session.js";
 
 export type WorkflowStep =
@@ -27,16 +28,9 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
   if (executionTarget !== "browser" && executionTarget !== "windows")
     throw new Error("Invalid execution target");
   const provider = value.provider;
-  if (
-    provider !== undefined &&
-    provider !== "onkernel" &&
-    provider !== "daytona"
-  )
+  if (provider !== undefined && !isProviderId(provider))
     throw new Error("Invalid computer provider");
-  if (
-    provider !== undefined &&
-    provider !== (executionTarget === "browser" ? "onkernel" : "daytona")
-  )
+  if (provider !== undefined && !supportsTarget(provider, executionTarget))
     throw new Error("Computer provider does not support this execution target");
   if (
     Object.keys(value).some(
