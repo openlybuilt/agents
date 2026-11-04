@@ -10,6 +10,9 @@ importers:
       "@onkernel/sdk":
         specifier: 0.87.0
         version: 0.87.0
+      "@superserve/sdk":
+        specifier: 0.11.5
+        version: 0.11.5
       openai:
         specifier: 6.48.0
         version: 6.48.0
@@ -29,6 +32,12 @@ packages:
     resolution:
       {
         integrity: sha512-95y8VGWyOthKg+0esaVXpHMInHuRYsU+6AjZSGK47pa9+oActRy3tqJscfxYRWSgWkI362D6/mAp9ElG9W2zWw==,
+      }
+
+  "@superserve/sdk@0.11.5":
+    resolution:
+      {
+        integrity: sha512-wBpBi2e8UVArm+BAYOFUUByoRcnKdewF/z8DiKBBrp2Wb7nBs1XmsAYuqtolKsL6L+mn0/rGvKpaSLg6JARcUQ==,
       }
 
   "@types/node@24.10.1":
@@ -84,6 +93,8 @@ packages:
 
 snapshots:
   "@onkernel/sdk@0.87.0": {}
+
+  "@superserve/sdk@0.11.5": {}
 
   "@types/node@24.10.1":
     dependencies:
