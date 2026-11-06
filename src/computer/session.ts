@@ -57,8 +57,8 @@ export function validateClickCoordinates(
 }
 
 export interface ComputerRecording {
-  browserId: string;
-  replayId: string;
+  browserId?: string;
+  replayId?: string;
   download(signal: AbortSignal): Promise<ReadableStream<Uint8Array>>;
 }
 

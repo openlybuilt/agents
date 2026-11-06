@@ -94,7 +94,7 @@ export class BackendClient {
   async recordingStatus(
     id: string,
     status: "pending" | "failed",
-    reference?: { browserId: string; replayId: string },
+    reference?: { browserId?: string; replayId?: string },
   ): Promise<void> {
     const response = await fetch(
       new URL(
