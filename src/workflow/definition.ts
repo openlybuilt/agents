@@ -1,4 +1,5 @@
-import type { ExecutionTarget } from "../computer/session.js";
+import { isProviderId, supportsTarget } from "../computer/provider-catalog.js";
+import type { ExecutionTarget, ProviderId } from "../computer/session.js";
 
 export type WorkflowStep =
   | { type: "navigate"; url: string }
@@ -14,6 +15,7 @@ export type WorkflowStep =
   | { type: "ai"; instruction: string };
 export type ResolvedWorkflow = {
   executionTarget: ExecutionTarget;
+  provider?: ProviderId;
   steps: WorkflowStep[];
 };
 
@@ -25,9 +27,14 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
     value.executionTarget === undefined ? "browser" : value.executionTarget;
   if (executionTarget !== "browser" && executionTarget !== "windows")
     throw new Error("Invalid execution target");
+  const provider = value.provider;
+  if (provider !== undefined && !isProviderId(provider))
+    throw new Error("Invalid computer provider");
+  if (provider !== undefined && !supportsTarget(provider, executionTarget))
+    throw new Error("Computer provider does not support this execution target");
   if (
     Object.keys(value).some(
-      (key) => !["steps", "executionTarget"].includes(key),
+      (key) => !["steps", "executionTarget", "provider"].includes(key),
     ) ||
     !Array.isArray(value.steps) ||
     value.steps.length < 1 ||
@@ -158,5 +165,9 @@ export function parseWorkflow(input: unknown): ResolvedWorkflow {
       return { type: "click", x: step.x, y: step.y };
     throw new Error("Invalid workflow step");
   });
-  return { executionTarget, steps };
+  return {
+    executionTarget,
+    ...(provider === undefined ? {} : { provider }),
+    steps,
+  };
 }

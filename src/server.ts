@@ -25,9 +25,15 @@ const windowsKey = process.env.DAYTONA_API_KEY?.trim();
 if (!browserKey && !windowsKey)
   throw new Error("Configure an OnKernel or Daytona provider API key");
 const computer = new ComputerProviders({
-  ...(browserKey ? { browser: new OnKernelProvider(browserKey) } : {}),
+  ...(browserKey
+    ? { onkernel: { browser: new OnKernelProvider(browserKey) } }
+    : {}),
   ...(windowsKey
-    ? { windows: new DaytonaProvider(windowsKey, process.env.DAYTONA_API_URL) }
+    ? {
+        daytona: {
+          windows: new DaytonaProvider(windowsKey, process.env.DAYTONA_API_URL),
+        },
+      }
     : {}),
 });
 const agent = new ComputerAgent(
@@ -81,6 +87,10 @@ const server = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/capabilities")
       return send(response, 200, {
         executionTargets: computer.executionTargets(),
+      });
+    if (request.method === "GET" && request.url === "/provider-capabilities")
+      return send(response, 200, {
+        providers: computer.providerCapabilities(),
       });
     if (request.method === "POST" && request.url === "/runs") {
       if (

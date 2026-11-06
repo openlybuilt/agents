@@ -1,4 +1,5 @@
 export type ExecutionTarget = "browser" | "windows";
+export type ProviderId = "onkernel" | "daytona";
 
 export class HorizontalScrollUnavailableError extends Error {
   constructor() {
@@ -16,6 +17,7 @@ export type ComputerOpenOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
   executionTarget?: ExecutionTarget;
+  provider?: ProviderId;
 };
 
 export interface ComputerScreenshot {
@@ -55,8 +57,8 @@ export function validateClickCoordinates(
 }
 
 export interface ComputerRecording {
-  browserId: string;
-  replayId: string;
+  browserId?: string;
+  replayId?: string;
   download(signal: AbortSignal): Promise<ReadableStream<Uint8Array>>;
 }
 
