@@ -20,6 +20,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@e2b/desktop": "2.5.0",
     "@onkernel/sdk": "0.87.0",
     "openai": "6.48.0"
   }
