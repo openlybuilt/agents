@@ -6,8 +6,10 @@ import {
 import { setTimeout as delay } from "node:timers/promises";
 import { ExecutionTargetUnavailableError } from "../computer/providers.js";
 import {
+  ClickOutsideScreenshotError,
   ComputerSessionCleanupError,
   HorizontalScrollUnavailableError,
+  validateClickCoordinates,
   type ComputerProvider,
   type ComputerRecording,
   type ComputerSession,
@@ -168,9 +170,14 @@ export class WorkflowRunner {
             await session.type(step.text);
           } else if (step.type === "press_keys")
             await session.pressKeys(step.keys);
-          else if (step.type === "click" && "x" in step)
+          else if (step.type === "click" && "x" in step) {
+            validateClickCoordinates(
+              await session.screenshot(),
+              step.x,
+              step.y,
+            );
             await session.click(step.x, step.y);
-          else {
+          } else {
             const agentResult = await this.agent.run(
               step.type === "click"
                 ? `Click the following visible target: ${step.target}. Click only that target, then finish.`
@@ -193,7 +200,10 @@ export class WorkflowRunner {
           signal.throwIfAborted();
           evidence.status = "completed";
         } catch (error) {
-          if (error instanceof HorizontalScrollUnavailableError)
+          if (
+            error instanceof HorizontalScrollUnavailableError ||
+            error instanceof ClickOutsideScreenshotError
+          )
             evidence.message = error.message;
           evidence.status = options.signal.aborted ? "cancelled" : "failed";
           emitEvent(options.onEvent, {
