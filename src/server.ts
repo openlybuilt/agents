@@ -14,7 +14,7 @@ import { RunService } from "./runs/service.js";
 import { BackendClient } from "./runs/backend-client.js";
 import { WorkflowRunner } from "./workflow/runner.js";
 
-const rawPort = process.env.PORT ?? "3100";
+const rawPort = process.env.PORT ?? "2130";
 if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535)
   throw new Error("PORT must be an integer between 1 and 65535");
 const apiToken = process.env.AGENTS_API_TOKEN ?? "";
@@ -47,7 +47,7 @@ const runs = new RunService(
   agent,
   new WorkflowRunner(computer, agent),
   new BackendClient(
-    process.env.BACKEND_URL ?? "http://127.0.0.1:3000",
+    process.env.BACKEND_URL ?? "http://127.0.0.1:2120",
     process.env.AGENTS_CALLBACK_TOKEN ?? "",
   ),
 );
