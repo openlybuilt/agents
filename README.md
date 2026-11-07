@@ -10,8 +10,8 @@ Use Node.js 24, pnpm 11.25.0, a running Openly backend, an OpenAI API key and mo
 
 | Variable                | Purpose                                                                |
 | ----------------------- | ---------------------------------------------------------------------- |
-| `PORT`                  | Agents port; default `3100`.                                           |
-| `BACKEND_URL`           | Backend loopback origin, such as `http://127.0.0.1:3000`.              |
+| `PORT`                  | Agents port; default `2130`.                                           |
+| `BACKEND_URL`           | Backend loopback origin, such as `http://127.0.0.1:2120`.              |
 | `AGENTS_API_TOKEN`      | Shared bearer token for backend-to-agents requests.                    |
 | `AGENTS_CALLBACK_TOKEN` | Shared bearer token for agents-to-backend callbacks.                   |
 | `OPENAI_API_KEY`        | API key for the computer-use model.                                    |
