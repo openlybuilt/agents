@@ -64,6 +64,12 @@ export interface ComputerRecording {
 
 export interface ComputerSession {
   readonly liveViewUrl?: string;
+  prewarmSelector?(
+    action: "fill" | "click" | "wait_for",
+    selector: string,
+    timeout?: number,
+    value?: string,
+  ): Promise<void>;
   startRecording(): Promise<ComputerRecording>;
   stopRecording(signal?: AbortSignal): Promise<void>;
   screenshot(): Promise<ComputerScreenshot>;
