@@ -16,6 +16,8 @@ import {
 } from "../computer/session.js";
 import type { ComputerAgent } from "../agent/computer-agent.js";
 import type { ResolvedWorkflow } from "./definition.js";
+import { prewarm, PrewarmError } from "../prewarm/runner.js";
+import type { PrewarmStep } from "../prewarm/config.js";
 import { emitEvent, type EventSink } from "../runs/events.js";
 
 export type StepResult = {
@@ -41,6 +43,7 @@ export class WorkflowRunner {
       signal: AbortSignal;
       timeoutMs: number;
       maxSteps: number;
+      prewarm?: PrewarmStep[];
       onStage?: (stage: "running" | "cleaning_up") => Promise<void>;
       onStep?: (steps: StepResult[]) => Promise<void>;
       onEvent?: EventSink;
@@ -79,6 +82,7 @@ export class WorkflowRunner {
           ? {}
           : { provider: workflow.provider }),
       });
+      if (options.prewarm) await prewarm(session, options.prewarm, signal);
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
           recording = await session.startRecording();
@@ -235,7 +239,8 @@ export class WorkflowRunner {
           ? "Workflow cancelled"
           : timeout.aborted
             ? "Workflow timed out"
-            : error instanceof ExecutionTargetUnavailableError ||
+            : error instanceof PrewarmError ||
+                error instanceof ExecutionTargetUnavailableError ||
                 error instanceof HorizontalScrollUnavailableError
               ? error.message
               : "Workflow step or computer operation failed",

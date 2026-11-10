@@ -2,6 +2,7 @@ import {
   parseWorkflow,
   type ResolvedWorkflow,
 } from "../workflow/definition.js";
+import { parsePrewarm, type PrewarmStep } from "../prewarm/config.js";
 export type RunRequest = {
   id: string;
   instruction: string;
@@ -9,6 +10,7 @@ export type RunRequest = {
   timeoutMs: number;
   recordingEnabled: boolean;
   workflow?: ResolvedWorkflow;
+  prewarm?: PrewarmStep[];
 };
 export function parseRun(value: unknown): RunRequest {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -23,6 +25,7 @@ export function parseRun(value: unknown): RunRequest {
           "maxSteps",
           "timeoutMs",
           "workflow",
+          "prewarm",
           "recordingEnabled",
         ].includes(key),
     )
@@ -43,6 +46,8 @@ export function parseRun(value: unknown): RunRequest {
     throw new Error("Invalid instruction");
   const maxSteps = r.maxSteps,
     timeoutMs = r.timeoutMs;
+  if (r.prewarm !== undefined && r.workflow === undefined)
+    throw new Error("Prewarming requires a workflow");
   if (
     r.recordingEnabled !== undefined &&
     typeof r.recordingEnabled !== "boolean"
@@ -68,6 +73,7 @@ export function parseRun(value: unknown): RunRequest {
     maxSteps,
     timeoutMs,
     recordingEnabled: r.recordingEnabled ?? true,
+    ...(r.prewarm === undefined ? {} : { prewarm: parsePrewarm(r.prewarm) }),
     ...(r.workflow === undefined
       ? {}
       : { workflow: parseWorkflow(r.workflow) }),

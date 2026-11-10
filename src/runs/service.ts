@@ -125,6 +125,7 @@ export class RunService {
       result = request.workflow
         ? await this.workflows.run(request.workflow, {
             ...options,
+            prewarm: request.prewarm,
             onStep: (steps) => report({ status: "running", steps }),
             onEvent: (event) => events?.emit(event),
             recordingOutageSignal: run.recordingOutageController.signal,

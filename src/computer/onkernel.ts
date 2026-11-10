@@ -144,6 +144,29 @@ class OnKernelSession implements ComputerSession {
     });
   }
 
+  prewarmSelector(
+    action: "fill" | "click" | "wait_for",
+    selector: string,
+    timeout?: number,
+    value?: string,
+  ): Promise<void> {
+    return this.run(async () => {
+      const locator = `page.locator(${JSON.stringify(selector)})`;
+      const operation =
+        action === "fill"
+          ? `${locator}.fill(${JSON.stringify(value)}, { timeout: 30000 })`
+          : action === "click"
+            ? `${locator}.click({ timeout: 30000 })`
+            : `${locator}.waitFor({ state: "visible", timeout: ${timeout} })`;
+      const result = await this.client.browsers.playwright.execute(
+        this.id,
+        { code: `await ${operation};`, timeout_sec: 35 },
+        { signal: this.signal },
+      );
+      if (!result.success) throw new Error("Prewarming browser action failed");
+    });
+  }
+
   click(x: number, y: number): Promise<void> {
     coordinate(x);
     coordinate(y);
