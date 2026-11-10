@@ -82,7 +82,14 @@ export class WorkflowRunner {
           ? {}
           : { provider: workflow.provider }),
       });
-      if (options.prewarm) await prewarm(session, options.prewarm, signal);
+      if (options.prewarm)
+        await prewarm(
+          session,
+          options.prewarm,
+          signal,
+          options.onEvent,
+          options.signal,
+        );
       if (options.onRecording && options.shouldRecord?.() !== false) {
         try {
           recording = await session.startRecording();

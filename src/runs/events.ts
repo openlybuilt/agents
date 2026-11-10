@@ -1,9 +1,17 @@
 import type { ComputerAction } from "../agent/actions.js";
 import type { WorkflowStep } from "../workflow/definition.js";
+import type { PrewarmStep } from "../prewarm/config.js";
 import type { BackendClient } from "./backend-client.js";
 
 type Outcome = "completed" | "failed" | "cancelled";
 export type RunEventDraft =
+  | {
+      kind: "prewarming";
+      stepIndex: number;
+      stepType: PrewarmStep["type"];
+      status: Outcome | "running";
+      durationMs?: number;
+    }
   | {
       kind: "step";
       stepIndex: number;
